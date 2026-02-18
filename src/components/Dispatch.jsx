@@ -1,0 +1,519 @@
+import React, { useState, useEffect } from 'react';
+import { Truck, Calendar, Hash, CheckCircle, Loader2, X, Eye, RefreshCw } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+
+export default function Dispatch({ api }) {
+    const { user } = useAuth();
+    const [orders, setOrders] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [dispatchModal, setDispatchModal] = useState(null);
+    const [detailsModal, setDetailsModal] = useState(null);
+
+    const isDispatch = user?.team_name?.includes('Dispatch') ||
+        user?.role === 'admin' ||
+        user?.role === 'manager' ||
+        user?.role === 'floor_manager' ||
+        user?.permissions?.includes('dispatch_access');
+
+    const loadOrders = React.useCallback(async () => {
+        setLoading(true);
+        try {
+            const { data } = await api.get('/sales/orders');
+            // Dispatch workflow starts after QC pass
+            const readyOrders = (data.orders || []).filter(o =>
+                o.status === 'QC Passed' || o.status === 'Dispatched'
+            );
+            setOrders(readyOrders);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    }, [api]);
+
+    useEffect(() => {
+        if (isDispatch) loadOrders();
+    }, [isDispatch, loadOrders]);
+
+    const downloadPdf = (blob, filename) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    };
+
+    const handleGenerateInvoice = async (orderId) => {
+        try {
+            const { data } = await api.get(`/sales/orders/${orderId}/invoice-pdf`, { responseType: 'blob' });
+            downloadPdf(data, `invoice-${orderId}.pdf`);
+            loadOrders();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to download invoice: ' + (e.response?.data?.message || e.message));
+        }
+    };
+
+    const handleGenerateEway = async (orderId) => {
+        try {
+            const { data } = await api.get(`/sales/orders/${orderId}/eway-pdf`, { responseType: 'blob' });
+            downloadPdf(data, `eway-bill-${orderId}.pdf`);
+            loadOrders();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to download e-way bill: ' + (e.response?.data?.message || e.message));
+        }
+    };
+
+    const handleDelivered = async (orderId) => {
+        if (!window.confirm('Mark this order as Delivered?')) return;
+        try {
+            await api.put(`/sales/orders/${orderId}/delivered`);
+            alert('Order marked as Delivered');
+            loadOrders();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to mark delivered: ' + (e.response?.data?.message || e.message));
+        }
+    };
+
+    const handleDispatch = async () => {
+        if (!dispatchModal) return;
+        const { order_id, dispatch_date, tracker_id, courier_partner } = dispatchModal;
+
+        if (!dispatch_date || !courier_partner) {
+            alert('Please fill dispatch date and courier partner');
+            return;
+        }
+
+        try {
+            await api.put(`/sales/orders/${order_id}/dispatch`, {
+                dispatch_date,
+                tracker_id,
+                courier_partner,
+                estimated_delivery: dispatchModal.estimated_delivery || null
+            });
+            alert('Order dispatched successfully!');
+            setDispatchModal(null);
+            loadOrders();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to dispatch: ' + (e.response?.data?.message || e.message));
+        }
+    };
+
+    if (!user) return null;
+    if (!isDispatch) {
+        return (
+            <div className="flex items-center justify-center h-64 bg-gray-50 rounded-xl">
+                <div className="text-center text-gray-500">
+                    <Truck className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p className="font-medium">Access Denied</p>
+                    <p className="text-sm">Dispatch access required</p>
+                </div>
+            </div>
+        );
+    }
+
+    const getStatusBadge = (status) => {
+        const colors = {
+            'QC Pending': 'bg-purple-100 text-purple-700 border-purple-200',
+            'QC Passed': 'bg-green-100 text-green-700 border-green-200',
+            'Ready to Dispatch': 'bg-green-100 text-green-700 border-green-200',
+            'Dispatched': 'bg-purple-100 text-purple-700 border-purple-200'
+        };
+        return colors[status] || 'bg-gray-100 text-gray-700';
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold flex items-center gap-2">
+                        <Truck className="text-blue-600" />
+                        Dispatch Center
+                    </h2>
+                    <p className="text-gray-600">Manage order dispatches and shipping</p>
+                </div>
+                <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors">
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    Refresh
+                </button>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-100">
+                    <div className="text-sm text-purple-600 font-medium">QC Passed (Ready)</div>
+                    <div className="text-3xl font-bold text-purple-700">{orders.filter(o => o.status === 'QC Passed').length}</div>
+                </div>
+                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-4 rounded-xl border border-blue-100">
+                    <div className="text-sm text-blue-600 font-medium">Dispatched Today</div>
+                    <div className="text-3xl font-bold text-blue-700">{orders.filter(o => o.status === 'Dispatched' && new Date(o.dispatched_at).toDateString() === new Date().toDateString()).length}</div>
+                </div>
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-xl border border-emerald-100">
+                    <div className="text-sm text-emerald-600 font-medium">Laptops On The Way</div>
+                    <div className="text-3xl font-bold text-emerald-700">
+                        {orders.reduce((sum, order) => sum + Number(order.on_the_way_laptops || 0), 0)}
+                    </div>
+                </div>
+                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100">
+                    <div className="text-sm text-amber-600 font-medium">Delivered Laptops</div>
+                    <div className="text-3xl font-bold text-amber-700">
+                        {orders.reduce((sum, order) => sum + Number(order.delivered_laptops || 0), 0)}
+                    </div>
+                </div>
+                <div className="bg-gradient-to-r from-gray-50 to-slate-50 p-4 rounded-xl border border-gray-200">
+                    <div className="text-sm text-gray-600 font-medium">Total In Dispatch Flow</div>
+                    <div className="text-3xl font-bold text-gray-700">{orders.length}</div>
+                </div>
+            </div>
+
+            {/* Orders Table */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-4 border-b border-gray-100 bg-gray-50">
+                    <h3 className="font-bold text-gray-700">Orders for Dispatch</h3>
+                </div>
+                <table className="w-full text-sm">
+                    <thead className="bg-gray-100">
+                        <tr>
+                            <th className="text-left p-3">Order ID</th>
+                            <th className="text-left p-3">Customer</th>
+                            <th className="text-center p-3">Items</th>
+                            <th className="text-left p-3">Status</th>
+                            <th className="text-left p-3">Tracker</th>
+                            <th className="text-left p-3">Courier</th>
+                            <th className="text-left p-3">Laptop Tracking</th>
+                            <th className="p-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {orders.map(order => (
+                            <tr key={order.order_id} className="border-t hover:bg-gray-50">
+                                <td className="p-3 font-bold text-blue-600">#{order.order_id}</td>
+                                <td className="p-3">
+                                    <div className="font-medium">{order.customer_name}</div>
+                                    <div className="text-xs text-gray-400">{order.customer_email}</div>
+                                </td>
+                                <td className="p-3 text-center font-bold">{order.items_count}</td>
+                                <td className="p-3">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusBadge(order.status)}`}>
+                                        {order.status}
+                                    </span>
+                                </td>
+                                <td className="p-3 text-gray-600">{order.tracker_id || '-'}</td>
+                                <td className="p-3 text-gray-600">{order.courier_partner || '-'}</td>
+                                <td className="p-3 text-xs">
+                                    <div className="text-emerald-700">Delivered: {order.delivered_laptops || 0}</div>
+                                    <div className="text-blue-700">On The Way: {order.on_the_way_laptops || 0}</div>
+                                    <div className="text-gray-700">Not Dispatched: {order.not_dispatched_laptops || 0}</div>
+                                </td>
+                                <td className="p-3">
+                                    <div className="flex gap-2 justify-center">
+                                        <button onClick={() => setDetailsModal(order)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                            <Eye className="w-4 h-4" />
+                                        </button>
+                                        {order.status === 'QC Passed' && (
+                                            <button
+                                                onClick={() => setDispatchModal({ order_id: order.order_id, dispatch_date: new Date().toISOString().split('T')[0], tracker_id: '', courier_partner: '', estimated_delivery: '' })}
+                                                className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 flex items-center gap-1"
+                                            >
+                                                <Truck className="w-3 h-3" /> Dispatch
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => handleGenerateInvoice(order.order_id)}
+                                            className="px-3 py-1 bg-slate-700 text-white rounded-lg text-xs font-bold hover:bg-slate-800"
+                                        >
+                                            Download Invoice
+                                        </button>
+                                        <button
+                                            onClick={() => handleGenerateEway(order.order_id)}
+                                            className="px-3 py-1 bg-slate-600 text-white rounded-lg text-xs font-bold hover:bg-slate-700"
+                                        >
+                                            Download E-way
+                                        </button>
+                                        {order.status === 'Dispatched' && (
+                                            <button
+                                                onClick={() => handleDelivered(order.order_id)}
+                                                className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1"
+                                            >
+                                                <CheckCircle className="w-3 h-3" /> Mark Delivered
+                                            </button>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                        {orders.length === 0 && !loading && (
+                            <tr><td colSpan={8} className="p-8 text-center text-gray-500">No orders in dispatch workflow</td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Dispatch Modal */}
+            {dispatchModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+                        <div className="p-6 border-b flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-bold flex items-center gap-2"><Truck className="text-green-600" /> Dispatch Order</h3>
+                                <p className="text-sm text-gray-500">Order #{dispatchModal.order_id}</p>
+                            </div>
+                            <button onClick={() => setDispatchModal(null)}><X className="w-6 h-6 text-gray-400" /></button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <Calendar className="w-4 h-4 inline mr-1" /> Dispatch Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={dispatchModal.dispatch_date}
+                                    onChange={e => setDispatchModal({ ...dispatchModal, dispatch_date: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <Hash className="w-4 h-4 inline mr-1" /> Tracker ID (AWB Number)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={dispatchModal.tracker_id}
+                                    onChange={e => setDispatchModal({ ...dispatchModal, tracker_id: e.target.value })}
+                                    placeholder="e.g. 1234567890"
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <Truck className="w-4 h-4 inline mr-1" /> Courier Partner
+                                </label>
+                                <select
+                                    value={dispatchModal.courier_partner}
+                                    onChange={e => setDispatchModal({ ...dispatchModal, courier_partner: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
+                                >
+                                    <option value="">Select Courier</option>
+                                    <option value="Bluedart">Bluedart</option>
+                                    <option value="Delhivery">Delhivery</option>
+                                    <option value="DTDC">DTDC</option>
+                                    <option value="FedEx">FedEx</option>
+                                    <option value="India Post">India Post</option>
+                                    <option value="Professional Courier">Professional Courier</option>
+                                    <option value="Self Delivery">Self Delivery</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <Calendar className="w-4 h-4 inline mr-1" /> Estimated Delivery
+                                </label>
+                                <input
+                                    type="date"
+                                    value={dispatchModal.estimated_delivery || ''}
+                                    onChange={e => setDispatchModal({ ...dispatchModal, estimated_delivery: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-6 border-t bg-gray-50 rounded-b-2xl flex justify-end gap-3">
+                            <button onClick={() => setDispatchModal(null)} className="px-6 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-lg">Cancel</button>
+                            <button onClick={handleDispatch} className="px-6 py-2.5 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 shadow-lg flex items-center gap-2">
+                                <Truck className="w-4 h-4" /> Mark Dispatched
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Details Modal */}
+            {detailsModal && (
+                <OrderDetailsQuick
+                    order={detailsModal}
+                    onClose={() => setDetailsModal(null)}
+                    api={api}
+                    onRefresh={loadOrders}
+                />
+            )}
+        </div>
+    );
+}
+
+function OrderDetailsQuick({ order, onClose, api, onRefresh }) {
+    const [items, setItems] = useState([]);
+    const [summary, setSummary] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [savingItemId, setSavingItemId] = useState(null);
+    const [trackingEdits, setTrackingEdits] = useState({});
+
+    useEffect(() => {
+        const loadItems = async () => {
+            try {
+                const { data } = await api.get(`/sales/orders/${order.order_id}`);
+                setItems(data.items || []);
+                setSummary(data.tracking_summary || null);
+                const initialEdits = {};
+                (data.items || []).forEach((item) => {
+                    initialEdits[item.item_id] = {
+                        tracking_status: item.tracking_status || 'Not Dispatched',
+                        item_tracker_id: item.item_tracker_id || '',
+                        item_courier_partner: item.item_courier_partner || '',
+                        item_dispatch_date: item.item_dispatch_date ? String(item.item_dispatch_date).split('T')[0] : '',
+                        item_estimated_delivery: item.item_estimated_delivery ? String(item.item_estimated_delivery).split('T')[0] : ''
+                    };
+                });
+                setTrackingEdits(initialEdits);
+            } catch (e) { console.error(e); } finally { setLoading(false); }
+        };
+        loadItems();
+    }, [order.order_id, api]);
+
+    const handleSaveTracking = async (itemId) => {
+        const payload = trackingEdits[itemId];
+        if (!payload) return;
+        setSavingItemId(itemId);
+        try {
+            await api.put(`/sales/orders/${order.order_id}/items/${itemId}/tracking`, {
+                ...payload,
+                item_dispatch_date: payload.item_dispatch_date || null,
+                item_estimated_delivery: payload.item_estimated_delivery || null
+            });
+            const { data } = await api.get(`/sales/orders/${order.order_id}`);
+            setItems(data.items || []);
+            setSummary(data.tracking_summary || null);
+            onRefresh();
+        } catch (e) {
+            alert('Failed to update tracking: ' + (e.response?.data?.message || e.message));
+        } finally {
+            setSavingItemId(null);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
+                    <div>
+                        <h3 className="text-xl font-bold">Order #{order.order_id}</h3>
+                        <p className="text-sm text-gray-500">{order.customer_name}</p>
+                    </div>
+                    <button onClick={onClose}><X className="w-6 h-6 text-gray-400" /></button>
+                </div>
+
+                <div className="p-6">
+                    {loading ? (
+                        <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" /></div>
+                    ) : (
+                        <div className="space-y-3">
+                            <h4 className="font-bold text-gray-800">Items to Dispatch</h4>
+                            {summary && (
+                                <div className="grid grid-cols-3 gap-2 text-xs">
+                                    <div className="bg-emerald-50 text-emerald-700 rounded p-2">Delivered: {summary.delivered || 0}</div>
+                                    <div className="bg-blue-50 text-blue-700 rounded p-2">On The Way: {summary.on_the_way || 0}</div>
+                                    <div className="bg-gray-50 text-gray-700 rounded p-2">Not Dispatched: {summary.not_dispatched || 0}</div>
+                                </div>
+                            )}
+                            {items.map((item, idx) => (
+                                <div key={idx} className="bg-gray-50 p-3 rounded-lg">
+                                    <div>
+                                        <div className="font-medium">{item.brand} {item.preferred_model}</div>
+                                        <div className="text-xs text-gray-500">{item.processor} | {item.ram} | {item.storage}</div>
+                                        {item.machine_number && <div className="text-xs text-blue-600 mt-1 font-mono">Machine: {item.machine_number}</div>}
+                                        {item.serial_number && <div className="text-xs text-gray-500 font-mono">Serial: {item.serial_number}</div>}
+                                        <div className="text-xs text-gray-500 mt-1">
+                                            Delivery Type: {item.delivery_mode || (item.is_wfh ? 'WFH' : 'Office')}
+                                            {item.delivery_mode === 'WFH' || item.is_wfh ? ` | WFH Shipping: ₹${parseFloat(item.shipping_charge || 0).toFixed(2)}` : ''}
+                                        </div>
+                                        <div className="text-xs text-gray-600 mt-1">
+                                            Contact: {item.delivery_contact_name || '-'} | Phone: {item.delivery_contact_phone || '-'}
+                                        </div>
+                                        <div className="text-xs text-gray-600 mt-1">
+                                            Address: {item.delivery_address || '-'} {item.delivery_pincode ? `(${item.delivery_pincode})` : ''}
+                                        </div>
+                                        <div className="text-[11px] text-gray-500 mt-1">
+                                            Dates: Dispatch Date (when laptop left warehouse) and ETA (expected delivery date)
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-6 gap-2 text-xs">
+                                        <select
+                                            className="border rounded px-2 py-1"
+                                            value={trackingEdits[item.item_id]?.tracking_status || 'Not Dispatched'}
+                                            onChange={(e) => setTrackingEdits(prev => ({
+                                                ...prev,
+                                                [item.item_id]: { ...(prev[item.item_id] || {}), tracking_status: e.target.value }
+                                            }))}
+                                        >
+                                            <option value="Not Dispatched">Not Dispatched</option>
+                                            <option value="On The Way">On The Way</option>
+                                            <option value="Delivered">Delivered</option>
+                                        </select>
+                                        <input
+                                            className="border rounded px-2 py-1"
+                                            placeholder="Tracker ID"
+                                            value={trackingEdits[item.item_id]?.item_tracker_id || ''}
+                                            onChange={(e) => setTrackingEdits(prev => ({
+                                                ...prev,
+                                                [item.item_id]: { ...(prev[item.item_id] || {}), item_tracker_id: e.target.value }
+                                            }))}
+                                        />
+                                        <input
+                                            className="border rounded px-2 py-1"
+                                            placeholder="Courier"
+                                            value={trackingEdits[item.item_id]?.item_courier_partner || ''}
+                                            onChange={(e) => setTrackingEdits(prev => ({
+                                                ...prev,
+                                                [item.item_id]: { ...(prev[item.item_id] || {}), item_courier_partner: e.target.value }
+                                            }))}
+                                        />
+                                        <div>
+                                            <div className="text-[10px] text-gray-500 mb-1">Dispatch Date</div>
+                                            <input
+                                                className="border rounded px-2 py-1 w-full"
+                                                type="date"
+                                                value={trackingEdits[item.item_id]?.item_dispatch_date || ''}
+                                                onChange={(e) => setTrackingEdits(prev => ({
+                                                    ...prev,
+                                                    [item.item_id]: { ...(prev[item.item_id] || {}), item_dispatch_date: e.target.value }
+                                                }))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-gray-500 mb-1">ETA</div>
+                                            <input
+                                                className="border rounded px-2 py-1 w-full"
+                                                type="date"
+                                                value={trackingEdits[item.item_id]?.item_estimated_delivery || ''}
+                                                onChange={(e) => setTrackingEdits(prev => ({
+                                                    ...prev,
+                                                    [item.item_id]: { ...(prev[item.item_id] || {}), item_estimated_delivery: e.target.value }
+                                                }))}
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={() => handleSaveTracking(item.item_id)}
+                                            disabled={savingItemId === item.item_id}
+                                            className="bg-slate-800 text-white rounded px-2 py-1 hover:bg-slate-900 disabled:opacity-60"
+                                        >
+                                            {savingItemId === item.item_id ? 'Saving...' : 'Save'}
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-6 border-t bg-gray-50 rounded-b-2xl flex justify-end">
+                    <button onClick={onClose} className="px-6 py-3 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800">Close</button>
+                </div>
+            </div>
+        </div>
+    );
+}
