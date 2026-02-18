@@ -1002,7 +1002,7 @@ function CreateTicket() {
               </div>
               <BarcodeScanner
                 onScanSuccess={onBarcodeWithScanner}
-                onScanFailure={(err) => console.log(err)}
+                onScanFailure={() => {}}
               />
             </div>
           ) : (
