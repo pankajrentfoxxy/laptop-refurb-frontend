@@ -491,6 +491,7 @@ function CustomerAddModal({ onClose, api, onRefresh }) {
 
 function CustomerUploadModal({ onClose, api, onRefresh }) {
     const [file, setFile] = useState(null);
+    const [addToExisting, setAddToExisting] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [result, setResult] = useState(null);
 
@@ -502,7 +503,8 @@ function CustomerUploadModal({ onClose, api, onRefresh }) {
         try {
             const formData = new FormData();
             formData.append('file', file);
-            const { data } = await api.post('/sales/customers/upload', formData, {
+            const url = addToExisting ? '/sales/customers/upload?add_to_existing=true' : '/sales/customers/upload';
+            const { data } = await api.post(url, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             setResult(data);
@@ -523,6 +525,10 @@ function CustomerUploadModal({ onClose, api, onRefresh }) {
                 </div>
                 <form onSubmit={handleUpload} className="p-4 space-y-4">
                     <p className="text-sm text-gray-600">Columns: name, company_name, email, phone, gst_no, type, concern_person, mobile_no, address, pincode, address_type</p>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={addToExisting} onChange={e => setAddToExisting(e.target.checked)} className="rounded" />
+                        <span>Add addresses to existing customers (when email/phone matches)</span>
+                    </label>
                     <div className="text-xs text-gray-600 space-y-1 bg-gray-50 p-3 rounded-lg">
                         <p><strong>concern_person</strong> = Name or role of the person to contact at that address (e.g. Rajesh Kumar, Warehouse Manager). Do not use &quot;Head Office&quot; or &quot;Contact Person&quot;.</p>
                         <p><strong>address_type</strong> = Billing or Shipping (for accounting/billing purposes).</p>
@@ -534,8 +540,14 @@ function CustomerUploadModal({ onClose, api, onRefresh }) {
                         <input type="file" accept=".csv" onChange={e => setFile(e.target.files?.[0])} className="w-full text-sm" />
                     </div>
                     {result && (
-                        <div className="p-3 bg-green-50 rounded-lg text-sm text-green-800">
-                            Imported: {result.imported || 0}, Skipped: {result.skipped || 0}, Failed: {result.failed || 0}
+                        <div className="p-3 bg-green-50 rounded-lg text-sm text-green-800 space-y-1">
+                            <p><strong>Total rows:</strong> {result.totalRows ?? '-'}</p>
+                            <p><strong>Imported:</strong> {result.imported ?? 0} customers, {result.addressesAdded ?? 0} addresses</p>
+                            {(result.skippedDuplicate > 0 || result.skippedNoKey > 0) && (
+                                <p className="text-amber-700"><strong>Skipped:</strong> {result.skippedDuplicate ?? 0} duplicates, {result.skippedNoKey ?? 0} no key (need email/phone/name)</p>
+                            )}
+                            {result.addressesAddedToExisting > 0 && <p>Added {result.addressesAddedToExisting} addresses to existing customers</p>}
+                            {result.failed > 0 && <p className="text-red-600">Failed: {result.failed}</p>}
                         </div>
                     )}
                     <div className="flex justify-end gap-2">

@@ -8,9 +8,12 @@ import { useAuth } from '../context/AuthContext';
 export default function Orders({ api }) {
     const { user } = useAuth();
     const [orders, setOrders] = useState([]);
+    const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('all');
     const [customerTypeFilter, setCustomerTypeFilter] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [viewAll, setViewAll] = useState(false);
 
@@ -19,31 +22,31 @@ export default function Orders({ api }) {
     const loadOrders = React.useCallback(async () => {
         setLoading(true);
         try {
-            let url = '/sales/orders';
             const params = new URLSearchParams();
+            if (activeTab !== 'all') params.append('status', activeTab);
+            if (customerTypeFilter) params.append('customer_type', customerTypeFilter);
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
+            if (!viewAll && isManager) params.append('owner', 'mine');
 
-            if (activeTab !== 'all') {
-                params.append('status', activeTab);
-            }
-            if (customerTypeFilter) {
-                params.append('customer_type', customerTypeFilter);
-            }
-            if (!viewAll && isManager) {
-                params.append('owner', 'mine');
-            }
+            const statsParams = new URLSearchParams();
+            if (activeTab !== 'all') statsParams.append('status', activeTab);
+            if (dateFrom) statsParams.append('date_from', dateFrom);
+            if (dateTo) statsParams.append('date_to', dateTo);
+            if (!viewAll && isManager) statsParams.append('owner', 'mine');
 
-            if (params.toString()) {
-                url += '?' + params.toString();
-            }
-
-            const { data } = await api.get(url);
-            setOrders(data.orders || []);
+            const [ordersRes, statsRes] = await Promise.all([
+                api.get('/sales/orders' + (params.toString() ? '?' + params.toString() : '')),
+                api.get('/sales/orders/stats' + (statsParams.toString() ? '?' + statsParams.toString() : ''))
+            ]);
+            setOrders(ordersRes.data.orders || []);
+            setStats(statsRes.data);
         } catch (e) {
             console.error(e);
         } finally {
             setLoading(false);
         }
-    }, [api, activeTab, customerTypeFilter, viewAll, isManager]);
+    }, [api, activeTab, customerTypeFilter, dateFrom, dateTo, viewAll, isManager]);
 
     useEffect(() => {
         loadOrders();
@@ -85,6 +88,20 @@ export default function Orders({ api }) {
                     <p className="text-gray-600">Track and manage all orders</p>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
+                    <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={e => setDateFrom(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        placeholder="From"
+                    />
+                    <input
+                        type="date"
+                        value={dateTo}
+                        onChange={e => setDateTo(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        placeholder="To"
+                    />
                     <select
                         value={customerTypeFilter}
                         onChange={e => setCustomerTypeFilter(e.target.value)}
@@ -115,11 +132,13 @@ export default function Orders({ api }) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50">
                     <div className="text-xs text-emerald-600 font-medium">New Customers</div>
-                    <div className="text-2xl font-bold text-emerald-700">{orders.filter(o => (o.customer_type || 'New') === 'New').length}</div>
+                    <div className="text-2xl font-bold text-emerald-700">{stats?.newCustomerOrders ?? '-'}</div>
+                    <div className="text-xs text-emerald-600 mt-1">{stats?.newCustomerLaptops ?? 0} laptops</div>
                 </div>
                 <div className="p-4 rounded-xl border-2 border-blue-200 bg-blue-50">
                     <div className="text-xs text-blue-600 font-medium">Existing Customers</div>
-                    <div className="text-2xl font-bold text-blue-700">{orders.filter(o => o.customer_type === 'Existing').length}</div>
+                    <div className="text-2xl font-bold text-blue-700">{stats?.existingCustomerOrders ?? '-'}</div>
+                    <div className="text-xs text-blue-600 mt-1">{stats?.existingCustomerLaptops ?? 0} laptops</div>
                 </div>
             </div>
 

@@ -11,15 +11,15 @@ export default function Sales({ api }) {
     const [cart, setCart] = useState([]);
     const [manualItem, setManualItem] = useState({ brand: '', processor: '', generation: '', ram: '', storage: '', model: '', quantity: 1, unit_price: '' });
     const [catalogOptions, setCatalogOptions] = useState({ brands: [], processors: [], generations: [], rams: [], storages: [], models: [] });
-    const [leadId, setLeadId] = useState('');
-    const [leadSearch, setLeadSearch] = useState('');
-    const [leads, setLeads] = useState([]);
+    const [customerId, setCustomerId] = useState('');
+    const [customerSearch, setCustomerSearch] = useState('');
+    const [customers, setCustomers] = useState([]);
     const [customer, setCustomer] = useState({ name: '', email: '', phone: '', gst_no: '' });
     const [linkedCustomerId, setLinkedCustomerId] = useState(null);
     const [customerAddresses, setCustomerAddresses] = useState([]);
     const [message, setMessage] = useState('');
     const [orderType, setOrderType] = useState('Sales');
-    const [lockinDays, setLockinDays] = useState(0);
+    const [lockinMonths, setLockinMonths] = useState(0);
     const [securityAmount, setSecurityAmount] = useState(0);
     const [orderEstimateId, setOrderEstimateId] = useState('');
     const [showCustomerSection, setShowCustomerSection] = useState(true);
@@ -35,15 +35,15 @@ export default function Sales({ api }) {
         }
     }, [api]);
 
-    const loadDealLeads = useCallback(async () => {
+    const loadCustomers = useCallback(async (searchTerm = '') => {
         try {
-            const { data } = await api.get('/leads');
-            const dealLeads = (data.leads || []).filter(l => l.status === 'Deal');
-            setLeads(dealLeads);
+            const params = (searchTerm || customerSearch).trim() ? `?search=${encodeURIComponent((searchTerm || customerSearch).trim())}` : '';
+            const { data } = await api.get(`/sales/customers${params}`);
+            setCustomers(data.customers || []);
         } catch (err) {
             console.error(err);
         }
-    }, [api]);
+    }, [api, customerSearch]);
 
     const loadCatalogOptions = useCallback(async (selected = {}) => {
         try {
@@ -61,53 +61,50 @@ export default function Sales({ api }) {
 
     useEffect(() => {
         loadSpecs();
-        loadDealLeads();
         loadCatalogOptions();
         const params = new URLSearchParams(location.search);
-        const leadParam = params.get('leadId');
-        if (leadParam) setLeadId(leadParam);
-    }, [loadSpecs, loadDealLeads, loadCatalogOptions, location.search]);
+        const custParam = params.get('customerId');
+        if (custParam) setCustomerId(custParam);
+    }, [loadSpecs, loadCatalogOptions, location.search]);
 
     useEffect(() => {
-        if (!leadId) return;
-        const lead = leads.find(l => String(l.leadId) === String(leadId));
-        if (lead) {
-            setLeadSearch(lead.companyName || lead.name || '');
-            setCustomer({
-                name: lead.companyName || lead.name,
-                email: lead.email || '',
-                phone: lead.phone || '',
-                gst_no: ''
-            });
+        const t = setTimeout(() => loadCustomers(customerSearch), customerSearch ? 300 : 0);
+        return () => clearTimeout(t);
+    }, [customerSearch, loadCustomers]);
+
+    useEffect(() => {
+        if (!customerId) {
+            setLinkedCustomerId(null);
+            setCustomerAddresses([]);
+            setCustomer({ name: '', email: '', phone: '', gst_no: '' });
+            return;
         }
-    }, [leadId, leads]);
-
-    useEffect(() => {
-        const loadLeadCustomerProfile = async () => {
-            if (!leadId) {
-                setLinkedCustomerId(null);
-                setCustomerAddresses([]);
-                return;
-            }
-            try {
-                const { data } = await api.get(`/leads/${leadId}/customer-profile`);
-                const linked = data.customer;
-                setLinkedCustomerId(linked?.customer_id || null);
-                setCustomerAddresses(data.addresses || []);
-                if (linked) {
+        const cust = customers.find(c => String(c.customer_id) === String(customerId));
+        if (cust) {
+            setLinkedCustomerId(cust.customer_id);
+            setCustomer({
+                name: cust.company_name || cust.name || '',
+                email: cust.email || '',
+                phone: cust.phone || '',
+                gst_no: cust.gst_no || ''
+            });
+            setCustomerAddresses(cust.addresses || []);
+        } else {
+            api.get(`/sales/customers/${customerId}`).then(({ data }) => {
+                const c = data.customer;
+                if (c) {
+                    setLinkedCustomerId(c.customer_id);
                     setCustomer({
-                        name: linked.company_name || linked.name || '',
-                        email: linked.email || '',
-                        phone: linked.phone || '',
-                        gst_no: linked.gst_no || ''
+                        name: c.company_name || c.name || '',
+                        email: c.email || '',
+                        phone: c.phone || '',
+                        gst_no: c.gst_no || ''
                     });
+                    setCustomerAddresses(c.addresses || []);
                 }
-            } catch (err) {
-                console.error(err);
-            }
-        };
-        loadLeadCustomerProfile();
-    }, [api, leadId]);
+            }).catch(() => {});
+        }
+    }, [customerId, customers, api]);
 
     useEffect(() => {
         if (!customerAddresses.length) return;
@@ -120,16 +117,6 @@ export default function Sales({ api }) {
         }));
     }, [customerAddresses]);
 
-    const filteredDealLeads = useMemo(() => {
-        const term = (leadSearch || '').trim().toLowerCase();
-        if (!term) return leads;
-        return leads.filter((lead) =>
-            (lead.companyName || '').toLowerCase().includes(term) ||
-            (lead.name || '').toLowerCase().includes(term) ||
-            (lead.email || '').toLowerCase().includes(term) ||
-            (lead.phone || '').includes(term)
-        );
-    }, [leadSearch, leads]);
 
     const handleSearch = async () => {
         setLoading(true);
@@ -277,25 +264,25 @@ export default function Sales({ api }) {
             }
         }
         try {
-            let customerId = linkedCustomerId;
-            if (!customerId) {
+            let custId = linkedCustomerId;
+            if (!custId) {
                 const customerRes = await api.post('/sales/customers', {
                     ...customer,
-                    company_name: customer.name,
-                    source_lead_id: leadId ? parseInt(leadId, 10) : null
+                    company_name: customer.name
                 });
-                customerId = customerRes.data.customer?.customer_id;
+                custId = customerRes.data.customer?.customer_id;
             }
-            if (!customerId) {
+            if (!custId) {
                 setMessage('Failed to create customer');
                 return;
             }
+            const lockinDays = Math.round((parseFloat(lockinMonths) || 0) * 30);
             const orderRes = await api.post('/sales/orders', {
-                customer_id: customerId,
-                lead_type: leadId ? 'Lead' : 'Direct',
+                customer_id: custId,
+                lead_type: 'Direct',
                 order_type: orderType,
                 estimate_id: orderEstimateId || null,
-                lockin_period_days: parseInt(lockinDays, 10) || 0,
+                lockin_period_days: lockinDays,
                 security_amount: parseFloat(securityAmount) || 0,
                 items: buildOrderItems
             });
@@ -327,7 +314,7 @@ export default function Sales({ api }) {
         <div className="space-y-5 max-w-6xl mx-auto">
             <div>
                 <h1 className="text-xl font-semibold text-slate-800">Sales Order Builder</h1>
-                <p className="text-sm text-slate-500 mt-0.5">Search inventory and create orders for Deal leads.</p>
+                <p className="text-sm text-slate-500 mt-0.5">Search inventory and create orders. Select customer from Customer table.</p>
             </div>
 
             {message && (
@@ -341,7 +328,7 @@ export default function Sales({ api }) {
                 >
                     <span className="flex items-center gap-2">
                         {showCustomerSection ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        Customer / Lead
+                        Customer
                     </span>
                 </button>
                 {showCustomerSection && (
@@ -349,19 +336,19 @@ export default function Sales({ api }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-4">
                     <input
                         className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                        placeholder="Search company / customer name"
-                        value={leadSearch}
-                        onChange={(e) => setLeadSearch(e.target.value)}
+                        placeholder="Search customer by name, company, email, phone..."
+                        value={customerSearch}
+                        onChange={(e) => setCustomerSearch(e.target.value)}
                     />
                     <select
                         className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                        value={leadId}
-                        onChange={(e) => setLeadId(e.target.value)}
+                        value={customerId}
+                        onChange={(e) => setCustomerId(e.target.value)}
                     >
-                        <option value="">Select Deal Lead</option>
-                        {filteredDealLeads.map(lead => (
-                            <option key={lead.leadId} value={lead.leadId}>
-                                {(lead.companyName || lead.name)} • {lead.name} ({lead.status})
+                        <option value="">Select Customer</option>
+                        {customers.map(c => (
+                            <option key={c.customer_id} value={c.customer_id}>
+                                {(c.company_name || c.name)} {c.email ? `• ${c.email}` : ''}
                             </option>
                         ))}
                     </select>
@@ -376,11 +363,12 @@ export default function Sales({ api }) {
                     </select>
                     <input
                         className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                        placeholder="Lock-in Period (days)"
+                        placeholder="Lock-in Period (months)"
                         type="number"
                         min="0"
-                        value={lockinDays}
-                        onChange={(e) => setLockinDays(e.target.value)}
+                        step="0.5"
+                        value={lockinMonths}
+                        onChange={(e) => setLockinMonths(e.target.value)}
                     />
                     <input
                         className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
