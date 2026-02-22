@@ -56,7 +56,7 @@ export default function FollowUps({ api }) {
         }
     }, [today, overdue, notifiedIds]);
 
-    if (loading) return <div className="text-center py-12">Loading follow-ups...</div>;
+    if (loading) return <div className="text-center py-12 text-slate-500 text-sm">Loading follow-ups...</div>;
 
     const getFollowUpState = (followUpDate) => {
         if (!followUpDate) return 'normal';
@@ -68,90 +68,112 @@ export default function FollowUps({ api }) {
         return 'normal';
     };
 
+    const formatFollowUpDateTime = (dateStr) => {
+        if (!dateStr) return '-';
+        const d = new Date(dateStr);
+        return (
+            <div className="leading-tight">
+                <div className="text-slate-600">{d.toLocaleDateString()}</div>
+                <div className="text-xs text-slate-500">{d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+            </div>
+        );
+    };
+
     const renderTable = (items) => (
-        <div className="bg-white border rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-600">
-                    <tr>
-                        <th className="p-3 text-left">Lead</th>
-                        <th className="p-3 text-left">Company</th>
-                        <th className="p-3 text-left">Status</th>
-                        <th className="p-3 text-left">Assignee</th>
-                        <th className="p-3 text-left">Follow-up</th>
-                        <th className="p-3 text-left">Action</th>
+        <div className="overflow-x-auto min-w-0">
+        <table className="w-full text-sm table-fixed">
+            <colgroup>
+                <col className="w-[18%]" />
+                <col className="w-[18%]" />
+                <col className="w-[12%]" />
+                <col className="w-[15%]" />
+                <col className="w-[22%]" />
+                <col className="w-[15%]" />
+            </colgroup>
+            <thead className="bg-slate-50">
+                <tr>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Lead</th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Company</th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Status</th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Assignee</th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Follow-up</th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {items.map(lead => (
+                    <tr
+                        key={lead.leadId}
+                        className={`border-t border-slate-100 hover:bg-slate-50/50 transition-colors ${
+                            getFollowUpState(lead.followUpDate) === 'overdue'
+                                ? 'bg-red-50/50'
+                                : getFollowUpState(lead.followUpDate) === 'upcoming_10m'
+                                    ? 'bg-emerald-50/50'
+                                    : ''
+                        }`}
+                    >
+                        <td className="px-2 py-2 text-slate-800 truncate" title={lead.name}>{lead.name}</td>
+                        <td className="px-2 py-2 text-slate-600 truncate" title={lead.companyName || ''}>{lead.companyName || '-'}</td>
+                        <td className="px-2 py-2">
+                            <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                                {lead.status}
+                            </span>
+                        </td>
+                        <td className="px-2 py-2 text-slate-600 truncate" title={lead.assignedUser?.name || ''}>{lead.assignedUser?.name || '-'}</td>
+                        <td className="px-2 py-2 text-slate-600 align-top">
+                            {formatFollowUpDateTime(lead.followUpDate)}
+                            {getFollowUpState(lead.followUpDate) === 'upcoming_10m' && (
+                                <div className="text-xs text-emerald-600 font-medium mt-0.5">Due in 10 min</div>
+                            )}
+                            {getFollowUpState(lead.followUpDate) === 'overdue' && (
+                                <div className="text-xs text-red-600 font-medium mt-0.5">Overdue</div>
+                            )}
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap align-top">
+                            <button
+                                onClick={() => navigate(`/leads/${lead.leadId}`)}
+                                className="text-indigo-600 hover:text-indigo-700 font-medium text-xs"
+                            >
+                                Update
+                            </button>
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    {items.map(lead => (
-                        <tr
-                            key={lead.leadId}
-                            className={`border-t hover:bg-gray-50 ${
-                                getFollowUpState(lead.followUpDate) === 'overdue'
-                                    ? 'bg-red-50'
-                                    : getFollowUpState(lead.followUpDate) === 'upcoming_10m'
-                                        ? 'bg-green-50'
-                                        : ''
-                            }`}
-                        >
-                            <td className="p-2 font-semibold">{lead.name}</td>
-                            <td className="p-2">{lead.companyName || '-'}</td>
-                            <td className="p-2">
-                                <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs">
-                                    {lead.status}
-                                </span>
-                            </td>
-                            <td className="p-2">{lead.assignedUser?.name || '-'}</td>
-                            <td className="p-2">
-                                {lead.followUpDate ? new Date(lead.followUpDate).toLocaleString() : '-'}
-                                {getFollowUpState(lead.followUpDate) === 'upcoming_10m' && (
-                                    <div className="text-[11px] text-green-700 font-semibold">Due in next 10 min</div>
-                                )}
-                                {getFollowUpState(lead.followUpDate) === 'overdue' && (
-                                    <div className="text-[11px] text-red-700 font-semibold">Overdue</div>
-                                )}
-                            </td>
-                            <td className="p-2">
-                                <button
-                                    onClick={() => navigate(`/leads/${lead.leadId}`)}
-                                    className="text-xs font-semibold text-blue-600 hover:underline"
-                                >
-                                    Update
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                    {items.length === 0 && (
-                        <tr>
-                            <td colSpan="6" className="p-6 text-center text-gray-500">
-                                No follow-ups found.
-                            </td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
+                ))}
+                {items.length === 0 && (
+                    <tr>
+                                    <td colSpan="6" className="px-2 py-6 text-center text-slate-500 text-sm">
+                            No follow-ups found.
+                        </td>
+                    </tr>
+                )}
+            </tbody>
+        </table>
         </div>
     );
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 max-w-6xl mx-auto">
             <div>
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Calendar className="text-blue-600" />
+                <h1 className="text-lg font-medium text-slate-800 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-indigo-600" />
                     Follow-ups
-                </h2>
-                <p className="text-gray-600">Today and overdue follow-ups</p>
+                </h1>
+                <p className="text-xs text-slate-500 mt-0.5">Today and overdue follow-ups</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white border rounded-xl p-6">
-                    <h3 className="font-bold mb-4">Today</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="border border-slate-200 rounded-lg bg-white overflow-hidden">
+                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-100">
+                        <h3 className="text-xs font-medium text-slate-600">Today</h3>
+                    </div>
                     {renderTable(today)}
                 </div>
 
-                <div className="bg-white border rounded-xl p-6">
-                    <h3 className="font-bold mb-4 flex items-center gap-2 text-amber-700">
-                        <AlertTriangle className="w-4 h-4" /> Overdue
-                    </h3>
+                <div className="border border-slate-200 rounded-lg bg-white overflow-hidden">
+                    <div className="px-3 py-2 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                        <h3 className="text-xs font-medium text-amber-800">Overdue</h3>
+                    </div>
                     {renderTable(overdue)}
                 </div>
             </div>

@@ -10,6 +10,7 @@ export default function Orders({ api }) {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('all');
+    const [customerTypeFilter, setCustomerTypeFilter] = useState('');
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [viewAll, setViewAll] = useState(false);
 
@@ -23,6 +24,9 @@ export default function Orders({ api }) {
 
             if (activeTab !== 'all') {
                 params.append('status', activeTab);
+            }
+            if (customerTypeFilter) {
+                params.append('customer_type', customerTypeFilter);
             }
             if (!viewAll && isManager) {
                 params.append('owner', 'mine');
@@ -39,7 +43,7 @@ export default function Orders({ api }) {
         } finally {
             setLoading(false);
         }
-    }, [api, activeTab, viewAll, isManager]);
+    }, [api, activeTab, customerTypeFilter, viewAll, isManager]);
 
     useEffect(() => {
         loadOrders();
@@ -80,7 +84,16 @@ export default function Orders({ api }) {
                     </h2>
                     <p className="text-gray-600">Track and manage all orders</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                    <select
+                        value={customerTypeFilter}
+                        onChange={e => setCustomerTypeFilter(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                        <option value="">All (New + Existing)</option>
+                        <option value="New">New Customers</option>
+                        <option value="Existing">Existing Customers</option>
+                    </select>
                     {isManager && (
                         <label className="flex items-center gap-2 text-sm">
                             <input
@@ -95,6 +108,18 @@ export default function Orders({ api }) {
                     <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     </button>
+                </div>
+            </div>
+
+            {/* New vs Existing Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50">
+                    <div className="text-xs text-emerald-600 font-medium">New Customers</div>
+                    <div className="text-2xl font-bold text-emerald-700">{orders.filter(o => (o.customer_type || 'New') === 'New').length}</div>
+                </div>
+                <div className="p-4 rounded-xl border-2 border-blue-200 bg-blue-50">
+                    <div className="text-xs text-blue-600 font-medium">Existing Customers</div>
+                    <div className="text-2xl font-bold text-blue-700">{orders.filter(o => o.customer_type === 'Existing').length}</div>
                 </div>
             </div>
 
@@ -135,6 +160,7 @@ export default function Orders({ api }) {
                         <tr>
                             <th className="text-left p-3">Order ID</th>
                             <th className="text-left p-3">Customer</th>
+                            <th className="text-center p-3">Type</th>
                             <th className="text-center p-3">Items</th>
                             <th className="text-left p-3">Status</th>
                             <th className="text-left p-3">Owner</th>
@@ -150,6 +176,11 @@ export default function Orders({ api }) {
                                 <td className="p-3">
                                     <div className="font-medium">{order.customer_name}</div>
                                     <div className="text-xs text-gray-400">{order.customer_email}</div>
+                                </td>
+                                <td className="p-3 text-center">
+                                    <span className={`px-2 py-1 rounded text-xs font-semibold ${(order.customer_type || 'New') === 'New' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        {order.customer_type || 'New'}
+                                    </span>
                                 </td>
                                 <td className="p-3 text-center font-bold">{order.items_count}</td>
                                 <td className="p-3">
@@ -183,10 +214,10 @@ export default function Orders({ api }) {
                             </tr>
                         ))}
                         {orders.length === 0 && !loading && (
-                            <tr><td colSpan={8} className="p-8 text-center text-gray-500">No orders found</td></tr>
+                            <tr><td colSpan={9} className="p-8 text-center text-gray-500">No orders found</td></tr>
                         )}
                         {loading && (
-                            <tr><td colSpan={8} className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600" /></td></tr>
+                            <tr><td colSpan={9} className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600" /></td></tr>
                         )}
                     </tbody>
                 </table>
@@ -357,6 +388,14 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
                                         <div className="font-bold text-green-700">{new Date(details.order.estimated_delivery).toLocaleDateString()}</div>
                                     </div>
                                 )}
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                    <div className="text-xs text-gray-500">Customer Type</div>
+                                    <div className="font-bold">
+                                        <span className={`px-2 py-0.5 rounded text-xs ${(details.order.customer_type || 'New') === 'New' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            {details.order.customer_type || 'New'}
+                                        </span>
+                                    </div>
+                                </div>
                                 <div className="bg-gray-50 p-3 rounded-lg">
                                     <div className="text-xs text-gray-500">Order Type</div>
                                     <div className="font-bold">{details.order.order_type || '-'}</div>

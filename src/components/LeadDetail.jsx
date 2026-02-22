@@ -4,7 +4,7 @@ import { CheckCircle, Calendar, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const STATUS_OPTIONS = ['Pending', 'Cold', 'Warm', 'Hot', 'Gone', 'Hold', 'Rejected', 'Deal', 'Repeat'];
+const STATUS_OPTIONS = ['Pending', 'Cold', 'Warm', 'Hot', 'Gone', 'Hold', 'Rejected', 'Call Back', 'Deal'];
 const toDateTimeLocalValue = (value) => {
     if (!value) return '';
     const date = new Date(value);
@@ -90,7 +90,7 @@ export default function LeadDetail({ api }) {
         phone: '',
         city: ''
     });
-    const [addressForm, setAddressForm] = useState({ concern_person: '', mobile_no: '', address: '', pincode: '' });
+    const [addressForm, setAddressForm] = useState({ concern_person: '', mobile_no: '', address: '', pincode: '', address_type: 'Shipping' });
     const [savingAddress, setSavingAddress] = useState(false);
     const navigate = useNavigate();
 
@@ -217,7 +217,7 @@ export default function LeadDetail({ api }) {
         setSavingAddress(true);
         try {
             await api.post(`/leads/${id}/addresses`, addressForm);
-            setAddressForm({ concern_person: '', mobile_no: '', address: '', pincode: '' });
+            setAddressForm({ concern_person: '', mobile_no: '', address: '', pincode: '', address_type: 'Shipping' });
             loadLead();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to add address');
@@ -404,7 +404,7 @@ export default function LeadDetail({ api }) {
 
             <div className="bg-white border rounded-xl p-6 space-y-4">
                 <h3 className="font-bold">Addresses</h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
                     <input
                         value={addressForm.concern_person}
                         onChange={(e) => setAddressForm(prev => ({ ...prev, concern_person: e.target.value }))}
@@ -423,6 +423,14 @@ export default function LeadDetail({ api }) {
                         placeholder="Pincode"
                         className="border rounded-lg px-3 py-2"
                     />
+                    <select
+                        value={addressForm.address_type}
+                        onChange={(e) => setAddressForm(prev => ({ ...prev, address_type: e.target.value }))}
+                        className="border rounded-lg px-3 py-2"
+                    >
+                        <option value="Billing">Billing</option>
+                        <option value="Shipping">Shipping</option>
+                    </select>
                     <button
                         onClick={handleAddAddress}
                         disabled={savingAddress}
@@ -446,6 +454,7 @@ export default function LeadDetail({ api }) {
                                 <div className="text-gray-600">{row.mobile_no || '-'}</div>
                                 <div className="text-gray-700">{row.address}</div>
                                 <div className="text-gray-500">Pincode: {row.pincode || '-'}</div>
+                                {row.address_type && <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{row.address_type}</span>}
                             </div>
                             <button
                                 onClick={() => handleDeleteAddress(row.address_id)}
@@ -536,7 +545,7 @@ export default function LeadDetail({ api }) {
                 )}
             </div>
 
-            {['Deal', 'Repeat'].includes(lead.status) && (
+            {lead.status === 'Deal' && (
                 <div className="bg-white border rounded-xl p-6">
                     <div className="flex items-center justify-between">
                         <div>

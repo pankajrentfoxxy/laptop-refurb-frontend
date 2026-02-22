@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search, Plus, ShoppingCart, Trash2 } from 'lucide-react';
+import { Search, Plus, ShoppingCart, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 export default function Sales({ api }) {
@@ -22,6 +22,8 @@ export default function Sales({ api }) {
     const [lockinDays, setLockinDays] = useState(0);
     const [securityAmount, setSecurityAmount] = useState(0);
     const [orderEstimateId, setOrderEstimateId] = useState('');
+    const [showCustomerSection, setShowCustomerSection] = useState(true);
+    const [showProcurement, setShowProcurement] = useState(false);
     const GST_PERCENT = 18;
 
     const loadSpecs = useCallback(async () => {
@@ -36,7 +38,7 @@ export default function Sales({ api }) {
     const loadDealLeads = useCallback(async () => {
         try {
             const { data } = await api.get('/leads');
-            const dealLeads = (data.leads || []).filter(l => ['Deal', 'Repeat'].includes(l.status));
+            const dealLeads = (data.leads || []).filter(l => l.status === 'Deal');
             setLeads(dealLeads);
         } catch (err) {
             console.error(err);
@@ -322,47 +324,58 @@ export default function Sales({ api }) {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5 max-w-6xl mx-auto">
             <div>
-                <h2 className="text-2xl font-bold">Sales Order Builder</h2>
-                <p className="text-gray-600">Search inventory and create orders for Deal/Repeat leads.</p>
+                <h1 className="text-xl font-semibold text-slate-800">Sales Order Builder</h1>
+                <p className="text-sm text-slate-500 mt-0.5">Search inventory and create orders for Deal leads.</p>
             </div>
 
             {message && (
-                <div className="p-3 bg-blue-50 text-blue-700 rounded-lg text-sm">{message}</div>
+                <div className="py-2.5 px-3 text-sm text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg">{message}</div>
             )}
 
-            <div className="bg-white border rounded-xl p-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="border border-slate-200 rounded-lg bg-white overflow-hidden">
+                <button
+                    onClick={() => setShowCustomerSection(!showCustomerSection)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                    <span className="flex items-center gap-2">
+                        {showCustomerSection ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        Customer / Lead
+                    </span>
+                </button>
+                {showCustomerSection && (
+                <div className="px-4 pb-4 pt-0 border-t border-slate-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-4">
                     <input
-                        className="border rounded-lg px-3 py-2"
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
                         placeholder="Search company / customer name"
                         value={leadSearch}
                         onChange={(e) => setLeadSearch(e.target.value)}
                     />
                     <select
-                        className="border rounded-lg px-3 py-2"
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
                         value={leadId}
                         onChange={(e) => setLeadId(e.target.value)}
                     >
-                        <option value="">Select Deal/Repeat Lead</option>
+                        <option value="">Select Deal Lead</option>
                         {filteredDealLeads.map(lead => (
                             <option key={lead.leadId} value={lead.leadId}>
                                 {(lead.companyName || lead.name)} • {lead.name} ({lead.status})
                             </option>
                         ))}
                     </select>
-                    <input className="border rounded-lg px-3 py-2" placeholder="Customer Name" value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
-                    <input className="border rounded-lg px-3 py-2" placeholder="Email" value={customer.email} onChange={(e) => setCustomer({ ...customer, email: e.target.value })} />
-                    <input className="border rounded-lg px-3 py-2" placeholder="Phone" value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
-                    <input className="border rounded-lg px-3 py-2" placeholder="GST (optional)" value={customer.gst_no} onChange={(e) => setCustomer({ ...customer, gst_no: e.target.value })} />
-                    <select className="border rounded-lg px-3 py-2" value={orderType} onChange={(e) => setOrderType(e.target.value)}>
+                    <input className="border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Customer Name" value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
+                    <input className="border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Email" value={customer.email} onChange={(e) => setCustomer({ ...customer, email: e.target.value })} />
+                    <input className="border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Phone" value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
+                    <input className="border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="GST (optional)" value={customer.gst_no} onChange={(e) => setCustomer({ ...customer, gst_no: e.target.value })} />
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={orderType} onChange={(e) => setOrderType(e.target.value)}>
                         <option value="Sales">Sales</option>
                         <option value="Rent">Rent</option>
                         <option value="Demo">Demo</option>
                     </select>
                     <input
-                        className="border rounded-lg px-3 py-2"
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
                         placeholder="Lock-in Period (days)"
                         type="number"
                         min="0"
@@ -370,7 +383,7 @@ export default function Sales({ api }) {
                         onChange={(e) => setLockinDays(e.target.value)}
                     />
                     <input
-                        className="border rounded-lg px-3 py-2"
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
                         placeholder="Security Amount"
                         type="number"
                         min="0"
@@ -378,51 +391,53 @@ export default function Sales({ api }) {
                         onChange={(e) => setSecurityAmount(e.target.value)}
                     />
                     <input
-                        className="border rounded-lg px-3 py-2"
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
                         placeholder="Estimate ID"
                         value={orderEstimateId}
                         onChange={(e) => setOrderEstimateId(e.target.value)}
                     />
                 </div>
+                </div>
+                )}
             </div>
 
-            <div className="bg-white border rounded-xl p-4">
+            <div className="border border-slate-200 rounded-lg bg-white p-4">
                 <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold">Search Available Inventory</h3>
-                    <button onClick={handleSearch} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                    <h3 className="text-sm font-medium text-slate-700">Search Available Inventory</h3>
+                    <button onClick={handleSearch} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
                         <Search className="w-4 h-4" /> Search
                     </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-8 gap-3">
-                    <select className="border rounded-lg px-3 py-2" value={filters.brand} onChange={(e) => setFilters({ ...filters, brand: e.target.value })}>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.brand} onChange={(e) => setFilters({ ...filters, brand: e.target.value })}>
                         <option value="">Any Brand</option>
                         {specs.brands?.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={filters.processor} onChange={(e) => setFilters({ ...filters, processor: e.target.value })}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.processor} onChange={(e) => setFilters({ ...filters, processor: e.target.value })}>
                         <option value="">Any Processor</option>
                         {specs.processors?.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={filters.ram} onChange={(e) => setFilters({ ...filters, ram: e.target.value })}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.ram} onChange={(e) => setFilters({ ...filters, ram: e.target.value })}>
                         <option value="">Any RAM</option>
                         {specs.rams?.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={filters.storage} onChange={(e) => setFilters({ ...filters, storage: e.target.value })}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.storage} onChange={(e) => setFilters({ ...filters, storage: e.target.value })}>
                         <option value="">Any Storage</option>
                         {specs.storages?.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={filters.generation} onChange={(e) => setFilters({ ...filters, generation: e.target.value })}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.generation} onChange={(e) => setFilters({ ...filters, generation: e.target.value })}>
                         <option value="">Any Generation</option>
                         {specs.generations?.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={filters.model} onChange={(e) => setFilters({ ...filters, model: e.target.value })}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.model} onChange={(e) => setFilters({ ...filters, model: e.target.value })}>
                         <option value="">Any Model</option>
                         {specs.models?.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={filters.gpu} onChange={(e) => setFilters({ ...filters, gpu: e.target.value })}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.gpu} onChange={(e) => setFilters({ ...filters, gpu: e.target.value })}>
                         <option value="">Any GPU</option>
                         {specs.gpus?.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={filters.screen_size} onChange={(e) => setFilters({ ...filters, screen_size: e.target.value })}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={filters.screen_size} onChange={(e) => setFilters({ ...filters, screen_size: e.target.value })}>
                         <option value="">Any Screen Size</option>
                         {specs.screen_sizes?.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
@@ -483,49 +498,62 @@ export default function Sales({ api }) {
                 </div>
             </div>
 
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-orange-700">Add Procurement Item (Out of Stock)</h3>
-                    <button onClick={handleAddManual} className="bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-                        <Plus className="w-4 h-4" /> Add to Cart
-                    </button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-                    <select className="border rounded-lg px-3 py-2" value={manualItem.brand} onChange={(e) => handleManualSelectChange('brand', e.target.value)}>
+            <div className="border border-slate-200 rounded-lg bg-white overflow-hidden">
+                <button
+                    onClick={() => setShowProcurement(!showProcurement)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                    <span className="flex items-center gap-2">
+                        {showProcurement ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        <Plus className="w-4 h-4" />
+                        Add Procurement Item (Out of Stock)
+                    </span>
+                </button>
+                {showProcurement && (
+                <div className="px-4 pb-4 pt-0 border-t border-slate-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-4">
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={manualItem.brand} onChange={(e) => handleManualSelectChange('brand', e.target.value)}>
                         <option value="">Brand *</option>
                         {catalogOptions.brands.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={manualItem.processor} onChange={(e) => handleManualSelectChange('processor', e.target.value)}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={manualItem.processor} onChange={(e) => handleManualSelectChange('processor', e.target.value)}>
                         <option value="">Processor *</option>
                         {catalogOptions.processors.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={manualItem.generation} onChange={(e) => handleManualSelectChange('generation', e.target.value)}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={manualItem.generation} onChange={(e) => handleManualSelectChange('generation', e.target.value)}>
                         <option value="">Generation *</option>
                         {catalogOptions.generations.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={manualItem.ram} onChange={(e) => handleManualSelectChange('ram', e.target.value)}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={manualItem.ram} onChange={(e) => handleManualSelectChange('ram', e.target.value)}>
                         <option value="">RAM *</option>
                         {catalogOptions.rams.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={manualItem.storage} onChange={(e) => handleManualSelectChange('storage', e.target.value)}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={manualItem.storage} onChange={(e) => handleManualSelectChange('storage', e.target.value)}>
                         <option value="">Storage *</option>
                         {catalogOptions.storages.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <select className="border rounded-lg px-3 py-2" value={manualItem.model} onChange={(e) => handleManualSelectChange('model', e.target.value)}>
+                    <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={manualItem.model} onChange={(e) => handleManualSelectChange('model', e.target.value)}>
                         <option value="">Model (optional)</option>
                         {catalogOptions.models.map(item => <option key={item} value={item}>{item}</option>)}
                     </select>
-                    <input className="border rounded-lg px-3 py-2" placeholder="Qty" type="number" min="1" value={manualItem.quantity} onChange={(e) => setManualItem({ ...manualItem, quantity: e.target.value })} />
-                    <input className="border rounded-lg px-3 py-2" placeholder="Unit Price ₹" value={manualItem.unit_price} onChange={(e) => setManualItem({ ...manualItem, unit_price: e.target.value })} />
+                    <input className="border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Qty" type="number" min="1" value={manualItem.quantity} onChange={(e) => setManualItem({ ...manualItem, quantity: e.target.value })} />
+                    <input className="border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Unit Price ₹" value={manualItem.unit_price} onChange={(e) => setManualItem({ ...manualItem, unit_price: e.target.value })} />
                 </div>
+                <div className="mt-4">
+                    <button onClick={handleAddManual} className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                        <Plus className="w-4 h-4" /> Add to Cart
+                    </button>
+                </div>
+                </div>
+                )}
             </div>
 
-            <div className="bg-white border rounded-xl p-4">
+            <div className="border border-slate-200 rounded-lg bg-white p-4">
                 <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold flex items-center gap-2">
+                    <h3 className="text-sm font-medium text-slate-700 flex items-center gap-2">
                         <ShoppingCart className="w-4 h-4" /> Cart Items
                     </h3>
-                    <button onClick={handleCreateOrder} className="bg-slate-900 text-white px-4 py-2 rounded-lg">Create Order</button>
+                    <button onClick={handleCreateOrder} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">Create Order</button>
                 </div>
                 <div className="space-y-2">
                     {cart.map((item, index) => (

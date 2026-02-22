@@ -185,14 +185,14 @@ export default function Inventory({ api }) {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-4 max-w-6xl mx-auto">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-bold flex items-center gap-2">
-                        <Archive className="text-orange-600" />
+                    <h2 className="text-lg font-medium text-slate-800 flex items-center gap-2">
+                        <Archive className="w-4 h-4 text-indigo-600" />
                         Inventory Management
                     </h2>
-                    <p className="text-gray-600">Manage laptops, desktops, and stock levels</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Manage laptops, desktops, and stock levels</p>
                 </div>
                 {canWrite && (
                     <div className="flex gap-2">
@@ -231,7 +231,7 @@ export default function Inventory({ api }) {
             </div>
 
             {/* Filters & Search */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row gap-4">
+            <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col md:flex-row gap-3">
                 <form onSubmit={handleSearch} className="flex-1 relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                     <input
@@ -266,56 +266,56 @@ export default function Inventory({ api }) {
             </div>
 
             {/* Inventory Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="bg-gray-50 border-b border-gray-200">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
-                                <th className="px-6 py-3 text-sm font-semibold text-gray-700">Machine #</th>
-                                <th className="px-6 py-3 text-sm font-semibold text-gray-700">Serial / Details</th>
-                                <th className="px-6 py-3 text-sm font-semibold text-gray-700">Device</th>
-                                <th className="px-6 py-3 text-sm font-semibold text-gray-700">Specs</th>
-                                <th className="px-6 py-3 text-sm font-semibold text-gray-700">Stage</th>
-                                <th className="px-6 py-3 text-sm font-semibold text-gray-700">Grade</th>
-                                <th className="px-6 py-3 text-sm font-semibold text-gray-700">Stock Type</th>
-                                <th className="px-6 py-3 text-sm font-semibold text-gray-700">Status</th>
+                                <th className="px-4 py-2 text-xs font-medium text-slate-500 uppercase tracking-wide">Machine #</th>
+                                <th className="px-4 py-2 text-xs font-medium text-slate-500 uppercase tracking-wide">Serial / Details</th>
+                                <th className="px-4 py-2 text-xs font-medium text-slate-500 uppercase tracking-wide">Device</th>
+                                <th className="px-4 py-2 text-xs font-medium text-slate-500 uppercase tracking-wide">Specs</th>
+                                <th className="px-4 py-2 text-xs font-medium text-slate-500 uppercase tracking-wide">Stage</th>
+                                <th className="px-4 py-2 text-xs font-medium text-slate-500 uppercase tracking-wide">Grade</th>
+                                <th className="px-4 py-2 text-xs font-medium text-slate-500 uppercase tracking-wide">Stock Type</th>
+                                <th className="px-4 py-2 text-xs font-medium text-slate-500 uppercase tracking-wide">Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200">
+                        <tbody className="divide-y divide-slate-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500">Loading inventory...</td>
+                                    <td colSpan="8" className="px-4 py-6 text-center text-slate-500 text-sm">Loading inventory...</td>
                                 </tr>
                             ) : items.length === 0 ? (
                                 <tr>
-                                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500">No items found</td>
+                                    <td colSpan="8" className="px-4 py-6 text-center text-slate-500 text-sm">No items found</td>
                                 </tr>
                             ) : (
                                 items.map((item) => (
-                                    <tr key={item.inventory_id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4">
+                                    <tr key={item.inventory_id} className="hover:bg-slate-50/50">
+                                        <td className="px-4 py-3">
                                             <div className="font-mono text-sm font-medium text-blue-600 mb-1">{item.machine_number}</div>
                                             <Barcode value={item.machine_number} width={1} height={30} fontSize={10} displayValue={false} />
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <div className="text-sm font-medium text-gray-900">{item.brand} {item.model}</div>
-                                            <div className="text-xs text-gray-500 font-mono">{item.serial_number}</div>
+                                        <td className="px-4 py-3">
+                                            <div className="text-slate-800">{item.brand} {item.model}</div>
+                                            <div className="text-xs text-slate-500 font-mono">{item.serial_number}</div>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-gray-600">{item.device_type}</td>
-                                        <td className="px-6 py-4 text-sm text-gray-600">
+                                        <td className="px-4 py-3 text-slate-600">{item.device_type}</td>
+                                        <td className="px-4 py-3 text-slate-600">
                                             {item.processor || '-'}, {item.generation || '-'}, {item.ram || '-'}, {item.storage || '-'}
-                                            <div className="text-xs text-gray-500 mt-1">
+                                            <div className="text-xs text-slate-500 mt-1">
                                                 GPU: {item.gpu || '-'} | Screen: {item.screen_size || '-'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <div className="text-sm font-medium text-gray-900">
+                                        <td className="px-4 py-3">
+                                            <div className="text-slate-800">
                                                 {item.stage || '-'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-3">
                                             {item.grade ? (
-                                                <span className={`px-2 py-1 rounded text-xs font-bold
+                                                <span className={`px-2 py-0.5 rounded text-xs font-medium
                                                     ${item.grade.startsWith('A') ? 'bg-green-100 text-green-700' :
                                                         item.grade.startsWith('B') ? 'bg-yellow-100 text-yellow-700' :
                                                             'bg-red-100 text-red-700'
@@ -323,17 +323,17 @@ export default function Inventory({ api }) {
                                                     {item.grade}
                                                 </span>
                                             ) : (
-                                                <span className="text-gray-400 text-xs">-</span>
+                                                <span className="text-slate-400 text-xs">-</span>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold
+                                        <td className="px-4 py-3">
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium
                         ${item.stock_type === 'Cooling Period' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                                                 {item.stock_type}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                        <td className="px-4 py-3">
+                                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
                                                 {item.status}
                                             </span>
                                         </td>

@@ -19,6 +19,7 @@ import FollowUps from './components/FollowUps';
 import ManagerDashboard from './components/ManagerDashboard';
 import Orders from './components/Orders';
 import QCOrders from './components/QCOrders';
+import Customers from './components/Customers';
 import Barcode from 'react-barcode';
 import {
   Package, Users, ClipboardList, BarChart3,
@@ -247,6 +248,7 @@ function Layout({ children }) {
     { icon: Briefcase, label: 'Sales Orders', path: '/sales', roles: ['manager', 'admin', 'sales'], permission: 'sales_access' },
     { icon: Clock, label: 'Follow-ups', path: '/follow-ups', roles: ['manager', 'admin', 'sales'], permission: 'sales_access' },
     { icon: ClipboardList, label: 'Lead Orders', path: '/lead-orders', roles: ['manager', 'admin', 'sales'], permission: 'orders_access' },
+    { icon: Users, label: 'Customers', path: '/customers', roles: ['manager', 'admin', 'sales'], permission: 'sales_access' },
     { icon: BarChart3, label: 'Manager Dashboard', path: '/manager-dashboard', roles: ['manager', 'admin'], permission: 'reports_access' },
     { icon: BarChart3, label: 'Reports', path: '/reports', roles: ['manager', 'admin', 'floor_manager'], permission: 'reports_access' },
     { icon: Package, label: 'Parts', path: '/parts', roles: ['manager', 'admin', 'floor_manager'], permission: 'parts_access' },
@@ -1241,7 +1243,9 @@ function Teams() {
     { key: 'orders_access', label: 'Orders' },
     { key: 'procurement_access', label: 'Procurement' },
     { key: 'dispatch_access', label: 'Dispatch' },
-    { key: 'warehouse_access', label: 'Warehouse' }
+    { key: 'warehouse_access', label: 'Warehouse' },
+    { key: 'customers_access', label: 'Customers (View)' },
+    { key: 'customers_edit', label: 'Customers (Edit)' }
   ];
 
   useEffect(() => {
@@ -2725,6 +2729,7 @@ function App() {
           <Route path="/leads/:id" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'sales']}><Layout><LeadDetail api={api} /></Layout></ProtectedRoute>} />
           <Route path="/follow-ups" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'sales']}><Layout><FollowUps api={api} /></Layout></ProtectedRoute>} />
           <Route path="/lead-orders" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'sales']}><Layout><Orders api={api} /></Layout></ProtectedRoute>} />
+          <Route path="/customers" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'sales']}><Layout><Customers api={api} /></Layout></ProtectedRoute>} />
           <Route path="/manager-dashboard" element={<ProtectedRoute allowedRoles={['admin', 'manager']}><Layout><ManagerDashboard api={api} /></Layout></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'sales']}><Layout><Orders api={api} /></Layout></ProtectedRoute>} />
           <Route path="/procurement" element={<ProtectedRoute><Layout><Procurement api={api} /></Layout></ProtectedRoute>} />
