@@ -15,9 +15,13 @@ export default function Orders({ api }) {
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const isAdmin = user?.role === 'admin';
+    const isManager = ['admin', 'manager'].includes(user?.role);
     const [viewAll, setViewAll] = useState(false);
 
-    const isManager = ['admin', 'manager'].includes(user?.role);
+    React.useEffect(() => {
+        if (isAdmin) setViewAll(true);
+    }, [isAdmin]);
 
     const loadOrders = React.useCallback(async () => {
         setLoading(true);
