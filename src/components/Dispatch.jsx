@@ -13,23 +13,26 @@ export default function Dispatch({ api }) {
         user?.role === 'admin' ||
         user?.role === 'manager' ||
         user?.role === 'floor_manager' ||
+        user?.role === 'dispatch' ||
         user?.permissions?.includes('dispatch_access');
 
     const loadOrders = React.useCallback(async () => {
         setLoading(true);
         try {
             const { data } = await api.get('/sales/orders');
-            // Dispatch workflow starts after QC pass
-            const readyOrders = (data.orders || []).filter(o =>
-                o.status === 'QC Passed' || o.status === 'Dispatched'
+            // Show all orders in pipeline (view-only until QC Passed)
+            const pipelineOrders = (data.orders || []).filter(o =>
+                ['Procurement Pending', 'QC Pending', 'QC Passed', 'Dispatched', 'Delivered'].includes(o.status)
             );
-            setOrders(readyOrders);
+            setOrders(pipelineOrders);
         } catch (e) {
             console.error(e);
         } finally {
             setLoading(false);
         }
     }, [api]);
+
+    const canUpdateOrder = (status) => ['QC Passed', 'Dispatched', 'Delivered'].includes(status);
 
     useEffect(() => {
         if (isDispatch) loadOrders();
@@ -120,10 +123,12 @@ export default function Dispatch({ api }) {
 
     const getStatusBadge = (status) => {
         const colors = {
+            'Procurement Pending': 'bg-amber-100 text-amber-700 border-amber-200',
             'QC Pending': 'bg-purple-100 text-purple-700 border-purple-200',
             'QC Passed': 'bg-green-100 text-green-700 border-green-200',
             'Ready to Dispatch': 'bg-green-100 text-green-700 border-green-200',
-            'Dispatched': 'bg-purple-100 text-purple-700 border-purple-200'
+            'Dispatched': 'bg-blue-100 text-blue-700 border-blue-200',
+            'Delivered': 'bg-emerald-100 text-emerald-700 border-emerald-200'
         };
         return colors[status] || 'bg-gray-100 text-gray-700';
     };
@@ -146,9 +151,17 @@ export default function Dispatch({ api }) {
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100">
+                    <div className="text-sm text-amber-600 font-medium">Procurement</div>
+                    <div className="text-3xl font-bold text-amber-700">{orders.filter(o => o.status === 'Procurement Pending').length}</div>
+                </div>
                 <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-100">
-                    <div className="text-sm text-purple-600 font-medium">QC Passed (Ready)</div>
-                    <div className="text-3xl font-bold text-purple-700">{orders.filter(o => o.status === 'QC Passed').length}</div>
+                    <div className="text-sm text-purple-600 font-medium">QC Pending</div>
+                    <div className="text-3xl font-bold text-purple-700">{orders.filter(o => o.status === 'QC Pending').length}</div>
+                </div>
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
+                    <div className="text-sm text-green-600 font-medium">QC Passed (Ready)</div>
+                    <div className="text-3xl font-bold text-green-700">{orders.filter(o => o.status === 'QC Passed').length}</div>
                 </div>
                 <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-4 rounded-xl border border-blue-100">
                     <div className="text-sm text-blue-600 font-medium">Dispatched Today</div>
@@ -175,7 +188,8 @@ export default function Dispatch({ api }) {
             {/* Orders Table */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="p-4 border-b border-gray-100 bg-gray-50">
-                    <h3 className="font-bold text-gray-700">Orders for Dispatch</h3>
+                    <h3 className="font-bold text-gray-700">All Orders in Pipeline</h3>
+                    <p className="text-xs text-gray-500 mt-1">View-only until QC Passed. Dispatch actions available after QC Team marks order as QC Passed.</p>
                 </div>
                 <table className="w-full text-sm">
                     <thead className="bg-gray-100">
@@ -212,44 +226,51 @@ export default function Dispatch({ api }) {
                                     <div className="text-gray-700">Not Dispatched: {order.not_dispatched_laptops || 0}</div>
                                 </td>
                                 <td className="p-3">
-                                    <div className="flex gap-2 justify-center">
-                                        <button onClick={() => setDetailsModal(order)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                    <div className="flex gap-2 justify-center flex-wrap">
+                                        <button onClick={() => setDetailsModal(order)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View details">
                                             <Eye className="w-4 h-4" />
                                         </button>
-                                        {order.status === 'QC Passed' && (
-                                            <button
-                                                onClick={() => setDispatchModal({ order_id: order.order_id, dispatch_date: new Date().toISOString().split('T')[0], tracker_id: '', courier_partner: '', estimated_delivery: '' })}
-                                                className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 flex items-center gap-1"
-                                            >
-                                                <Truck className="w-3 h-3" /> Dispatch
-                                            </button>
+                                        {canUpdateOrder(order.status) && (
+                                            <>
+                                                {order.status === 'QC Passed' && (
+                                                    <button
+                                                        onClick={() => setDispatchModal({ order_id: order.order_id, dispatch_date: new Date().toISOString().split('T')[0], tracker_id: '', courier_partner: '', estimated_delivery: '' })}
+                                                        className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 flex items-center gap-1"
+                                                    >
+                                                        <Truck className="w-3 h-3" /> Dispatch
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => handleGenerateInvoice(order.order_id)}
+                                                    className="px-3 py-1 bg-slate-700 text-white rounded-lg text-xs font-bold hover:bg-slate-800"
+                                                >
+                                                    Invoice
+                                                </button>
+                                                <button
+                                                    onClick={() => handleGenerateEway(order.order_id)}
+                                                    className="px-3 py-1 bg-slate-600 text-white rounded-lg text-xs font-bold hover:bg-slate-700"
+                                                >
+                                                    E-way
+                                                </button>
+                                                {order.status === 'Dispatched' && (
+                                                    <button
+                                                        onClick={() => handleDelivered(order.order_id)}
+                                                        className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1"
+                                                    >
+                                                        <CheckCircle className="w-3 h-3" /> Delivered
+                                                    </button>
+                                                )}
+                                            </>
                                         )}
-                                        <button
-                                            onClick={() => handleGenerateInvoice(order.order_id)}
-                                            className="px-3 py-1 bg-slate-700 text-white rounded-lg text-xs font-bold hover:bg-slate-800"
-                                        >
-                                            Download Invoice
-                                        </button>
-                                        <button
-                                            onClick={() => handleGenerateEway(order.order_id)}
-                                            className="px-3 py-1 bg-slate-600 text-white rounded-lg text-xs font-bold hover:bg-slate-700"
-                                        >
-                                            Download E-way
-                                        </button>
-                                        {order.status === 'Dispatched' && (
-                                            <button
-                                                onClick={() => handleDelivered(order.order_id)}
-                                                className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1"
-                                            >
-                                                <CheckCircle className="w-3 h-3" /> Mark Delivered
-                                            </button>
+                                        {!canUpdateOrder(order.status) && (
+                                            <span className="text-xs text-gray-400 px-2 py-1" title="Updates available after QC Pass">View only</span>
                                         )}
                                     </div>
                                 </td>
                             </tr>
                         ))}
                         {orders.length === 0 && !loading && (
-                            <tr><td colSpan={8} className="p-8 text-center text-gray-500">No orders in dispatch workflow</td></tr>
+                            <tr><td colSpan={8} className="p-8 text-center text-gray-500">No orders in pipeline</td></tr>
                         )}
                     </tbody>
                 </table>
@@ -340,13 +361,14 @@ export default function Dispatch({ api }) {
                     onClose={() => setDetailsModal(null)}
                     api={api}
                     onRefresh={loadOrders}
+                    canEdit={canUpdateOrder(detailsModal.status)}
                 />
             )}
         </div>
     );
 }
 
-function OrderDetailsQuick({ order, onClose, api, onRefresh }) {
+function OrderDetailsQuick({ order, onClose, api, onRefresh, canEdit = true }) {
     const [items, setItems] = useState([]);
     const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -436,6 +458,11 @@ function OrderDetailsQuick({ order, onClose, api, onRefresh }) {
                                         </div>
                                         <div className="text-xs text-gray-600 mt-1">
                                             Address: {item.delivery_address || '-'} {item.delivery_pincode ? `(${item.delivery_pincode})` : ''}
+                                            {item.proposed_delivery_date && (
+                                                <span className="ml-2 text-indigo-600 font-medium">
+                                                    | Proposed: {new Date(item.proposed_delivery_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="text-[11px] text-gray-500 mt-1">
                                             Dates: Dispatch Date (when laptop left warehouse) and ETA (expected delivery date)
@@ -443,66 +470,75 @@ function OrderDetailsQuick({ order, onClose, api, onRefresh }) {
                                     </div>
                                     <div className="mt-3 grid grid-cols-1 md:grid-cols-6 gap-2 text-xs">
                                         <select
-                                            className="border rounded px-2 py-1"
+                                            className={`border rounded px-2 py-1 ${!canEdit ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                             value={trackingEdits[item.item_id]?.tracking_status || 'Not Dispatched'}
-                                            onChange={(e) => setTrackingEdits(prev => ({
+                                            onChange={(e) => canEdit && setTrackingEdits(prev => ({
                                                 ...prev,
                                                 [item.item_id]: { ...(prev[item.item_id] || {}), tracking_status: e.target.value }
                                             }))}
+                                            disabled={!canEdit}
                                         >
                                             <option value="Not Dispatched">Not Dispatched</option>
                                             <option value="On The Way">On The Way</option>
                                             <option value="Delivered">Delivered</option>
                                         </select>
                                         <input
-                                            className="border rounded px-2 py-1"
+                                            className={`border rounded px-2 py-1 ${!canEdit ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                             placeholder="Tracker ID"
                                             value={trackingEdits[item.item_id]?.item_tracker_id || ''}
-                                            onChange={(e) => setTrackingEdits(prev => ({
+                                            onChange={(e) => canEdit && setTrackingEdits(prev => ({
                                                 ...prev,
                                                 [item.item_id]: { ...(prev[item.item_id] || {}), item_tracker_id: e.target.value }
                                             }))}
+                                            disabled={!canEdit}
                                         />
                                         <input
-                                            className="border rounded px-2 py-1"
+                                            className={`border rounded px-2 py-1 ${!canEdit ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                             placeholder="Courier"
                                             value={trackingEdits[item.item_id]?.item_courier_partner || ''}
-                                            onChange={(e) => setTrackingEdits(prev => ({
+                                            onChange={(e) => canEdit && setTrackingEdits(prev => ({
                                                 ...prev,
                                                 [item.item_id]: { ...(prev[item.item_id] || {}), item_courier_partner: e.target.value }
                                             }))}
+                                            disabled={!canEdit}
                                         />
                                         <div>
                                             <div className="text-[10px] text-gray-500 mb-1">Dispatch Date</div>
                                             <input
-                                                className="border rounded px-2 py-1 w-full"
+                                                className={`border rounded px-2 py-1 w-full ${!canEdit ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                 type="date"
                                                 value={trackingEdits[item.item_id]?.item_dispatch_date || ''}
-                                                onChange={(e) => setTrackingEdits(prev => ({
+                                                onChange={(e) => canEdit && setTrackingEdits(prev => ({
                                                     ...prev,
                                                     [item.item_id]: { ...(prev[item.item_id] || {}), item_dispatch_date: e.target.value }
                                                 }))}
+                                                disabled={!canEdit}
                                             />
                                         </div>
                                         <div>
                                             <div className="text-[10px] text-gray-500 mb-1">ETA</div>
                                             <input
-                                                className="border rounded px-2 py-1 w-full"
+                                                className={`border rounded px-2 py-1 w-full ${!canEdit ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                 type="date"
                                                 value={trackingEdits[item.item_id]?.item_estimated_delivery || ''}
-                                                onChange={(e) => setTrackingEdits(prev => ({
+                                                onChange={(e) => canEdit && setTrackingEdits(prev => ({
                                                     ...prev,
                                                     [item.item_id]: { ...(prev[item.item_id] || {}), item_estimated_delivery: e.target.value }
                                                 }))}
+                                                disabled={!canEdit}
                                             />
                                         </div>
-                                        <button
-                                            onClick={() => handleSaveTracking(item.item_id)}
-                                            disabled={savingItemId === item.item_id}
-                                            className="bg-slate-800 text-white rounded px-2 py-1 hover:bg-slate-900 disabled:opacity-60"
-                                        >
-                                            {savingItemId === item.item_id ? 'Saving...' : 'Save'}
-                                        </button>
+                                        {canEdit ? (
+                                            <button
+                                                onClick={() => handleSaveTracking(item.item_id)}
+                                                disabled={savingItemId === item.item_id}
+                                                className="bg-slate-800 text-white rounded px-2 py-1 hover:bg-slate-900 disabled:opacity-60"
+                                            >
+                                                {savingItemId === item.item_id ? 'Saving...' : 'Save'}
+                                            </button>
+                                        ) : (
+                                            <span className="text-gray-400 text-[10px] self-center">View only</span>
+                                        )}
                                     </div>
                                 </div>
                             ))}

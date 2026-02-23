@@ -501,12 +501,8 @@ function CustomerUploadModal({ onClose, api, onRefresh }) {
         setUploading(true);
         setResult(null);
         try {
-            const formData = new FormData();
-            formData.append('file', file);
             const url = addToExisting ? '/sales/customers/upload?add_to_existing=true' : '/sales/customers/upload';
-            const { data } = await api.post(url, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const { data } = await api.postForm(url, { file });
             setResult(data);
             onRefresh();
         } catch (e) {

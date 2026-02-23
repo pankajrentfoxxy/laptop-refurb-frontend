@@ -143,9 +143,7 @@ export default function LeadList({ api }) {
         try {
             const formData = new FormData();
             formData.append('file', file);
-            const { data } = await api.post('/leads/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const { data } = await api.post('/leads/upload', formData);
             setMessage(data.message || 'Upload complete');
             loadLeads();
         } catch (err) {

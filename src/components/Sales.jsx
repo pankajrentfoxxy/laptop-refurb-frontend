@@ -18,9 +18,10 @@ export default function Sales({ api }) {
     const [linkedCustomerId, setLinkedCustomerId] = useState(null);
     const [customerAddresses, setCustomerAddresses] = useState([]);
     const [message, setMessage] = useState('');
-    const [orderType, setOrderType] = useState('Sales');
+    const [orderType, setOrderType] = useState('Rent');
     const [lockinMonths, setLockinMonths] = useState(0);
     const [securityAmount, setSecurityAmount] = useState(0);
+    const [useRentAsSecurity, setUseRentAsSecurity] = useState(false);
     const [orderEstimateId, setOrderEstimateId] = useState('');
     const [showCustomerSection, setShowCustomerSection] = useState(true);
     const [showProcurement, setShowProcurement] = useState(false);
@@ -154,6 +155,7 @@ export default function Sales({ api }) {
                         delivery_contact_phone: '',
                         delivery_address: '',
                         delivery_pincode: '',
+                        proposed_delivery_date: '',
                         is_wfh: false,
                         shipping_charge: 0,
                         estimate_id: '',
@@ -192,6 +194,7 @@ export default function Sales({ api }) {
                 delivery_contact_phone: '',
                 delivery_address: '',
                 delivery_pincode: '',
+                proposed_delivery_date: '',
                 is_wfh: false,
                 shipping_charge: 0,
                 estimate_id: '',
@@ -218,7 +221,8 @@ export default function Sales({ api }) {
             delivery_contact_name: item.delivery_mode === 'WFH' ? (item.delivery_contact_name || '') : '',
             delivery_contact_phone: item.delivery_mode === 'WFH' ? (item.delivery_contact_phone || '') : '',
             delivery_address: item.delivery_mode === 'WFH' ? (item.delivery_address || '') : '',
-            delivery_pincode: item.delivery_mode === 'WFH' ? (item.delivery_pincode || '') : ''
+            delivery_pincode: item.delivery_mode === 'WFH' ? (item.delivery_pincode || '') : '',
+            proposed_delivery_date: item.proposed_delivery_date || null
         }));
     }, [cart]);
 
@@ -232,9 +236,13 @@ export default function Sales({ api }) {
         [cart]
     );
     const shippingGst = useMemo(() => shippingSubtotal * 0.18, [shippingSubtotal]);
+    const effectiveSecurity = useMemo(
+        () => useRentAsSecurity ? subtotal : (parseFloat(securityAmount) || 0),
+        [useRentAsSecurity, subtotal, securityAmount]
+    );
     const grandTotal = useMemo(
-        () => subtotal + itemsGst + (parseFloat(securityAmount) || 0) + shippingSubtotal + shippingGst,
-        [subtotal, itemsGst, securityAmount, shippingSubtotal, shippingGst]
+        () => subtotal + itemsGst + effectiveSecurity + shippingSubtotal + shippingGst,
+        [subtotal, itemsGst, effectiveSecurity, shippingSubtotal, shippingGst]
     );
 
     const handleCreateOrder = async () => {
@@ -283,7 +291,7 @@ export default function Sales({ api }) {
                 order_type: orderType,
                 estimate_id: orderEstimateId || null,
                 lockin_period_days: lockinDays,
-                security_amount: parseFloat(securityAmount) || 0,
+                security_amount: useRentAsSecurity ? subtotal : (parseFloat(securityAmount) || 0),
                 items: buildOrderItems
             });
             setMessage(`Order created: ${orderRes.data.order_id} (${orderRes.data.status})`);
@@ -357,8 +365,8 @@ export default function Sales({ api }) {
                     <input className="border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Phone" value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
                     <input className="border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="GST (optional)" value={customer.gst_no} onChange={(e) => setCustomer({ ...customer, gst_no: e.target.value })} />
                     <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm" value={orderType} onChange={(e) => setOrderType(e.target.value)}>
-                        <option value="Sales">Sales</option>
                         <option value="Rent">Rent</option>
+                        <option value="Sales">Sales</option>
                         <option value="Demo">Demo</option>
                     </select>
                     <input
@@ -370,14 +378,29 @@ export default function Sales({ api }) {
                         value={lockinMonths}
                         onChange={(e) => setLockinMonths(e.target.value)}
                     />
-                    <input
-                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                        placeholder="Security Amount"
-                        type="number"
-                        min="0"
-                        value={securityAmount}
-                        onChange={(e) => setSecurityAmount(e.target.value)}
-                    />
+                    <div className="flex flex-col gap-1">
+                        <input
+                            className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                            placeholder="Security Amount"
+                            type="number"
+                            min="0"
+                            value={useRentAsSecurity ? subtotal : securityAmount}
+                            onChange={(e) => setSecurityAmount(e.target.value)}
+                            disabled={useRentAsSecurity}
+                        />
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={useRentAsSecurity}
+                                onChange={(e) => {
+                                    setUseRentAsSecurity(e.target.checked);
+                                    if (!e.target.checked) setSecurityAmount(0);
+                                }}
+                                className="rounded border-slate-300"
+                            />
+                            <span className="text-[10px] text-slate-500">Security = Rent total (excl. GST)</span>
+                        </label>
+                    </div>
                     <input
                         className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
                         placeholder="Estimate ID"
@@ -554,7 +577,7 @@ export default function Sales({ api }) {
                                 <div className="text-xs text-gray-500">
                                     GST {GST_PERCENT}%: ₹{((((parseFloat(item.unit_price) || 0) * (parseInt(item.quantity, 10) || 1)) * 0.18).toFixed(2))}
                                 </div>
-                                <div className="mt-2 grid grid-cols-1 md:grid-cols-6 gap-2">
+                                <div className="mt-2 grid grid-cols-1 md:grid-cols-7 gap-2">
                                     <select
                                         className="border rounded px-2 py-1 text-xs"
                                         value={item.delivery_mode || 'Office'}
@@ -578,21 +601,31 @@ export default function Sales({ api }) {
                                         <option value="WFH">WFH</option>
                                     </select>
                                     {(item.delivery_mode || 'Office') === 'Office' ? (
-                                        <select
-                                            className="border rounded px-2 py-1 text-xs md:col-span-3"
-                                            value={item.customer_address_id || ''}
-                                            onChange={(e) => {
-                                                const value = e.target.value;
-                                                setCart(prev => prev.map((cartItem, i) => i === index ? { ...cartItem, customer_address_id: value } : cartItem));
-                                            }}
-                                        >
-                                            <option value="">Select office address</option>
-                                            {customerAddresses.map((row) => (
-                                                <option key={row.customer_address_id} value={row.customer_address_id}>
-                                                    {row.is_head_office ? '[Head Office] ' : ''}{row.concern_person || 'Contact'} - {row.address} {row.pincode ? `(${row.pincode})` : ''}
-                                                </option>
-                                            ))}
-                                        </select>
+                                        <>
+                                            <select
+                                                className="border rounded px-2 py-1 text-xs md:col-span-3"
+                                                value={item.customer_address_id || ''}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    setCart(prev => prev.map((cartItem, i) => i === index ? { ...cartItem, customer_address_id: value } : cartItem));
+                                                }}
+                                            >
+                                                <option value="">Select office address</option>
+                                                {customerAddresses.map((row) => (
+                                                    <option key={row.customer_address_id} value={row.customer_address_id}>
+                                                        {row.is_head_office ? '[Head Office] ' : ''}{row.concern_person || 'Contact'} - {row.address} {row.pincode ? `(${row.pincode})` : ''}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <input
+                                                type="date"
+                                                className="border rounded px-2 py-1 text-xs"
+                                                placeholder="Delivery"
+                                                value={item.proposed_delivery_date || ''}
+                                                onChange={(e) => setCart(prev => prev.map((cartItem, i) => i === index ? { ...cartItem, proposed_delivery_date: e.target.value } : cartItem))}
+                                                title="Customer proposed delivery date"
+                                            />
+                                        </>
                                     ) : (
                                         <>
                                             <input
@@ -642,6 +675,14 @@ export default function Sales({ api }) {
                                                     setCart(prev => prev.map((cartItem, i) => i === index ? { ...cartItem, delivery_pincode: value } : cartItem));
                                                 }}
                                             />
+                                            <input
+                                                type="date"
+                                                className="border rounded px-2 py-1 text-xs"
+                                                placeholder="Delivery"
+                                                value={item.proposed_delivery_date || ''}
+                                                onChange={(e) => setCart(prev => prev.map((cartItem, i) => i === index ? { ...cartItem, proposed_delivery_date: e.target.value } : cartItem))}
+                                                title="Customer proposed delivery date"
+                                            />
                                         </>
                                     )}
                                 </div>
@@ -656,7 +697,7 @@ export default function Sales({ api }) {
                 <div className="mt-4 border-t pt-3 text-sm text-gray-700 space-y-1">
                     <div>Subtotal: ₹{subtotal.toFixed(2)}</div>
                     <div>Items GST (18%): ₹{itemsGst.toFixed(2)}</div>
-                    <div>Security Amount: ₹{(parseFloat(securityAmount) || 0).toFixed(2)}</div>
+                    <div>Security Amount: ₹{effectiveSecurity.toFixed(2)}{useRentAsSecurity ? ' (Rent total)' : ''}</div>
                     <div>Shipping Charge (WFH items): ₹{shippingSubtotal.toFixed(2)}</div>
                     <div>Shipping GST (18%): ₹{shippingGst.toFixed(2)}</div>
                     <div className="font-bold">Grand Total: ₹{grandTotal.toFixed(2)}</div>

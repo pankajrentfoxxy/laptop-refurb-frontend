@@ -53,7 +53,8 @@ function Login() {
       await login(email, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      const msg = err.response?.data?.message || err.message || 'Login failed';
+      setError(msg === 'Network Error' ? 'Cannot reach server. Check if backend is running.' : msg);
     } finally {
       setLoading(false);
     }
@@ -252,9 +253,9 @@ function Layout({ children }) {
     { icon: BarChart3, label: 'Manager Dashboard', path: '/manager-dashboard', roles: ['manager', 'admin'], permission: 'reports_access' },
     { icon: BarChart3, label: 'Reports', path: '/reports', roles: ['manager', 'admin', 'floor_manager'], permission: 'reports_access' },
     { icon: Package, label: 'Parts', path: '/parts', roles: ['manager', 'admin', 'floor_manager'], permission: 'parts_access' },
-    { icon: Truck, label: 'Procurement', path: '/procurement', roles: ['manager', 'admin'], permission: 'procurement_access' },
-    { icon: CheckCircle, label: 'QC Orders', path: '/qc-orders', roles: ['team_member', 'team_lead', 'manager', 'admin', 'floor_manager'], permission: 'qc_access' },
-    { icon: Truck, label: 'Dispatch', path: '/dispatch', roles: ['manager', 'admin', 'floor_manager'], permission: 'dispatch_access' },
+    { icon: Truck, label: 'Procurement', path: '/procurement', roles: ['manager', 'admin', 'procurement'], permission: 'procurement_access' },
+    { icon: CheckCircle, label: 'QC Orders', path: '/qc-orders', roles: ['manager', 'admin', 'floor_manager', 'qc'], permission: 'qc_access' },
+    { icon: Truck, label: 'Dispatch', path: '/dispatch', roles: ['manager', 'admin', 'floor_manager', 'dispatch'], permission: 'dispatch_access' },
     { icon: Users, label: 'Teams', path: '/teams', roles: ['manager', 'admin'] },
   ];
 
@@ -1241,7 +1242,8 @@ function Teams() {
     { key: 'reports_access', label: 'Reports' },
     { key: 'sales_access', label: 'Sales' },
     { key: 'orders_access', label: 'Orders' },
-    { key: 'procurement_access', label: 'Procurement' },
+    { key: 'procurement_access', label: 'Procurement (Orders)' },
+    { key: 'qc_access', label: 'QC Orders' },
     { key: 'dispatch_access', label: 'Dispatch' },
     { key: 'warehouse_access', label: 'Warehouse' },
     { key: 'customers_access', label: 'Customers (View)' },
@@ -1425,18 +1427,21 @@ function Teams() {
                   value={formData.role}
                   onChange={e => {
                     const role = e.target.value;
-                    const noTeamRequired = role === 'admin' || role === 'sales';
-                    setFormData(prev => ({
-                      ...prev,
-                      role,
-                      team_id: noTeamRequired ? '' : (prev.team_id || teams[0]?.team_id || '')
-                    }));
+                    const noTeamRequired = ['admin', 'sales', 'qc', 'dispatch', 'procurement'].includes(role);
+                    let teamId = '';
+                    if (!noTeamRequired) {
+                      teamId = formData.team_id || teams[0]?.team_id || '';
+                    }
+                    setFormData(prev => ({ ...prev, role, team_id: teamId }));
                   }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="team_member">Team Member</option>
                   <option value="sales">Sales</option>
                   <option value="floor_manager">Floor Manager</option>
+                  <option value="procurement">Procurement</option>
+                  <option value="qc">QC</option>
+                  <option value="dispatch">Dispatch</option>
                   <option value="team_lead">Team Lead</option>
                   <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
@@ -1452,10 +1457,10 @@ function Teams() {
                     setFormData({ ...formData, team_id: value ? parseInt(value) : '' });
                   }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                  disabled={formData.role === 'admin' || formData.role === 'sales'}
+                  disabled={['admin', 'sales', 'qc', 'dispatch', 'procurement'].includes(formData.role)}
                 >
                   <option value="">
-                    {(formData.role === 'admin' || formData.role === 'sales') ? 'No team required for this role' : 'Select a team'}
+                    {['admin', 'sales', 'qc', 'dispatch', 'procurement'].includes(formData.role) ? 'No team required (standalone role)' : 'Select a team'}
                   </option>
                   {teams.map(team => (
                     <option key={team.team_id} value={team.team_id}>
@@ -2686,12 +2691,15 @@ function TicketDetails() {
   );
 }
 
-// Protected Route
-function ProtectedRoute({ children, allowedRoles }) {
+// Protected Route - allows access by role OR by permission
+function ProtectedRoute({ children, allowedRoles, allowedPermissions }) {
   const { isAuthenticated, user, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!isAuthenticated) return <Navigate to="/login" />;
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+  const perms = Array.isArray(user?.permissions) ? user.permissions : [];
+  const hasRole = !allowedRoles || (user && allowedRoles.includes(user.role));
+  const hasPermission = !allowedPermissions || allowedPermissions.some(p => perms.includes(p));
+  if (!hasRole && !hasPermission) {
     return <Navigate to="/dashboard" />;
   }
   return children;
@@ -2732,9 +2740,9 @@ function App() {
           <Route path="/customers" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'sales']}><Layout><Customers api={api} /></Layout></ProtectedRoute>} />
           <Route path="/manager-dashboard" element={<ProtectedRoute allowedRoles={['admin', 'manager']}><Layout><ManagerDashboard api={api} /></Layout></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'sales']}><Layout><Orders api={api} /></Layout></ProtectedRoute>} />
-          <Route path="/procurement" element={<ProtectedRoute><Layout><Procurement api={api} /></Layout></ProtectedRoute>} />
-          <Route path="/qc-orders" element={<ProtectedRoute><Layout><QCOrders api={api} /></Layout></ProtectedRoute>} />
-          <Route path="/dispatch" element={<ProtectedRoute><Layout><Dispatch api={api} /></Layout></ProtectedRoute>} />
+          <Route path="/procurement" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'procurement']} allowedPermissions={['procurement_access']}><Layout><Procurement api={api} /></Layout></ProtectedRoute>} />
+          <Route path="/qc-orders" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'floor_manager', 'qc']} allowedPermissions={['qc_access']}><Layout><QCOrders api={api} /></Layout></ProtectedRoute>} />
+          <Route path="/dispatch" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'floor_manager', 'dispatch']} allowedPermissions={['dispatch_access']}><Layout><Dispatch api={api} /></Layout></ProtectedRoute>} />
           <Route path="/teams" element={<ProtectedRoute><Layout><Teams /></Layout></ProtectedRoute>} />
         </Routes>
       </Router>

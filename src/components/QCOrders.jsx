@@ -2,6 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { Eye, Loader2, MessageSquare, RefreshCw, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+function LaptopDetailsCell({ items }) {
+    if (!items || items.length === 0) return <span className="text-gray-400">Loading...</span>;
+    return (
+        <div className="space-y-1.5 max-w-md">
+            {items.map((item, idx) => (
+                <div key={idx} className="text-xs border-l-2 border-slate-200 pl-2 py-0.5">
+                    <div className="font-medium text-slate-800">{item.brand} {item.preferred_model || ''}</div>
+                    <div className="text-gray-600">{item.processor} | {item.ram} | {item.storage}</div>
+                    {item.machine_number ? (
+                        <div className="text-blue-600 font-mono mt-0.5">Machine: {item.machine_number}</div>
+                    ) : (
+                        <div className="text-amber-600 mt-0.5">Pending assignment</div>
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export default function QCOrders({ api }) {
     const { user } = useAuth();
     const [orders, setOrders] = useState([]);
@@ -14,6 +33,7 @@ export default function QCOrders({ api }) {
         user?.role === 'admin' ||
         user?.role === 'manager' ||
         user?.role === 'floor_manager' ||
+        user?.role === 'qc' ||
         user?.permissions?.includes('qc_access');
 
     const loadOrders = React.useCallback(async () => {
@@ -21,7 +41,17 @@ export default function QCOrders({ api }) {
         try {
             const { data } = await api.get('/sales/orders');
             const qcOrders = (data.orders || []).filter(o => o.status === 'Procurement Pending' || o.status === 'QC Pending');
-            setOrders(qcOrders);
+            const withItems = await Promise.all(
+                qcOrders.map(async (o) => {
+                    try {
+                        const { data: detail } = await api.get(`/sales/orders/${o.order_id}`);
+                        return { ...o, items: detail.items || [] };
+                    } catch {
+                        return { ...o, items: [] };
+                    }
+                })
+            );
+            setOrders(withItems);
         } catch (e) {
             console.error(e);
         } finally {
@@ -89,7 +119,7 @@ export default function QCOrders({ api }) {
                     <thead className="bg-gray-100">
                         <tr>
                             <th className="text-left p-3">Order ID</th>
-                            <th className="text-left p-3">Customer</th>
+                            <th className="text-left p-3">Laptop Details</th>
                             <th className="text-left p-3">Status</th>
                             <th className="text-center p-3">Items</th>
                             <th className="p-3">Actions</th>
@@ -100,8 +130,7 @@ export default function QCOrders({ api }) {
                             <tr key={order.order_id} className="border-t hover:bg-gray-50">
                                 <td className="p-3 font-bold text-blue-600">#{order.order_id}</td>
                                 <td className="p-3">
-                                    <div className="font-medium">{order.customer_name}</div>
-                                    <div className="text-xs text-gray-400">{order.customer_email}</div>
+                                    <LaptopDetailsCell items={order.items || []} />
                                 </td>
                                 <td className="p-3">
                                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${order.status === 'QC Pending' ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -169,10 +198,15 @@ export default function QCOrders({ api }) {
 }
 
 function OrderDetailsQuick({ order, onClose, api }) {
-    const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [items, setItems] = useState(order.items || []);
+    const [loading, setLoading] = useState(!(order.items && order.items.length > 0));
 
     useEffect(() => {
+        if (order.items && order.items.length > 0) {
+            setItems(order.items);
+            setLoading(false);
+            return;
+        }
         const loadItems = async () => {
             try {
                 const { data } = await api.get(`/sales/orders/${order.order_id}`);
@@ -184,7 +218,7 @@ function OrderDetailsQuick({ order, onClose, api }) {
             }
         };
         loadItems();
-    }, [order.order_id, api]);
+    }, [order.order_id, order.items, api]);
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -201,13 +235,20 @@ function OrderDetailsQuick({ order, onClose, api }) {
                         <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" /></div>
                     ) : (
                         <div className="space-y-3">
-                            <h4 className="font-bold text-gray-800">Laptop Details</h4>
+                            <h4 className="font-bold text-gray-800">Laptop Details (Assigned by Procurement)</h4>
                             {items.map((item, idx) => (
-                                <div key={idx} className="bg-gray-50 p-3 rounded-lg">
-                                    <div className="font-medium">{item.brand} {item.preferred_model}</div>
-                                    <div className="text-xs text-gray-500">{item.processor} | {item.ram} | {item.storage}</div>
-                                    {item.machine_number && <div className="text-xs text-blue-600 mt-1">Machine: {item.machine_number}</div>}
-                                    {item.serial_number && <div className="text-xs text-gray-500">Serial: {item.serial_number}</div>}
+                                <div key={idx} className={`p-3 rounded-lg border ${item.machine_number ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                                    <div className="font-medium">{item.brand} {item.preferred_model || ''}</div>
+                                    <div className="text-xs text-gray-600">{item.processor} | {item.ram} | {item.storage}</div>
+                                    {item.machine_number ? (
+                                        <>
+                                            <div className="text-sm text-blue-700 font-mono mt-1 font-semibold">Machine: {item.machine_number}</div>
+                                            {item.serial_number && <div className="text-xs text-gray-600 font-mono">Serial: {item.serial_number}</div>}
+                                            <span className="inline-block mt-1 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded">Scanned & Assigned</span>
+                                        </>
+                                    ) : (
+                                        <span className="inline-block mt-1 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Pending scan</span>
+                                    )}
                                 </div>
                             ))}
                         </div>
