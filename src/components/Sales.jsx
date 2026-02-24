@@ -215,7 +215,7 @@ export default function Sales({ api }) {
             unit_price: item.unit_price || 0,
             inventory_ids: item.inventory_ids ? item.inventory_ids.slice(0, parseInt(item.quantity, 10) || 1) : undefined,
             delivery_mode: item.delivery_mode || (item.is_wfh ? 'WFH' : 'Office'),
-            customer_address_id: item.delivery_mode === 'WFH' ? null : (item.customer_address_id ? parseInt(item.customer_address_id, 10) : null),
+            customer_address_id: item.delivery_mode === 'WFH' ? null : (item.customer_address_id && !isNaN(parseInt(item.customer_address_id, 10)) ? parseInt(item.customer_address_id, 10) : null),
             is_wfh: item.delivery_mode === 'WFH',
             shipping_charge: item.delivery_mode === 'WFH' ? (parseFloat(item.shipping_charge) || 0) : 0,
             delivery_contact_name: item.delivery_mode === 'WFH' ? (item.delivery_contact_name || '') : '',

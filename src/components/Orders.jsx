@@ -60,6 +60,7 @@ export default function Orders({ api }) {
         const colors = {
             'New Lead': 'bg-blue-100 text-blue-700',
             'Procurement Pending': 'bg-yellow-100 text-yellow-700',
+            'Warehouse Pending': 'bg-teal-100 text-teal-700',
             'Processing': 'bg-orange-100 text-orange-700',
             'QC Pending': 'bg-purple-100 text-purple-700',
             'QC Passed': 'bg-indigo-100 text-indigo-700',
@@ -74,6 +75,7 @@ export default function Orders({ api }) {
     const tabs = [
         { key: 'all', label: 'All Orders' },
         { key: 'Procurement Pending', label: 'Procurement' },
+        { key: 'Warehouse Pending', label: 'Warehouse' },
         { key: 'QC Pending', label: 'QC Pending' },
         { key: 'QC Passed', label: 'QC Passed' },
         { key: 'Dispatched', label: 'Dispatched' },
@@ -341,7 +343,7 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
     };
 
     const getItemStatusBadge = (status) => {
-        const colors = { 'Assigned': 'bg-green-100 text-green-700', 'Procurement': 'bg-orange-100 text-orange-700' };
+        const colors = { 'Assigned': 'bg-green-100 text-green-700', 'Procurement': 'bg-orange-100 text-orange-700', 'Warehouse': 'bg-teal-100 text-teal-700' };
         return colors[status] || 'bg-gray-100 text-gray-700';
     };
     const getTrackingStatusBadge = (status) => {

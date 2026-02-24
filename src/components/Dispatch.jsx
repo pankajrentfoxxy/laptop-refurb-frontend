@@ -22,7 +22,7 @@ export default function Dispatch({ api }) {
             const { data } = await api.get('/sales/orders');
             // Show all orders in pipeline (view-only until QC Passed)
             const pipelineOrders = (data.orders || []).filter(o =>
-                ['Procurement Pending', 'QC Pending', 'QC Passed', 'Dispatched', 'Delivered'].includes(o.status)
+                ['Procurement Pending', 'Warehouse Pending', 'QC Pending', 'QC Passed', 'Dispatched', 'Delivered'].includes(o.status)
             );
             setOrders(pipelineOrders);
         } catch (e) {
@@ -124,6 +124,7 @@ export default function Dispatch({ api }) {
     const getStatusBadge = (status) => {
         const colors = {
             'Procurement Pending': 'bg-amber-100 text-amber-700 border-amber-200',
+            'Warehouse Pending': 'bg-teal-100 text-teal-700 border-teal-200',
             'QC Pending': 'bg-purple-100 text-purple-700 border-purple-200',
             'QC Passed': 'bg-green-100 text-green-700 border-green-200',
             'Ready to Dispatch': 'bg-green-100 text-green-700 border-green-200',

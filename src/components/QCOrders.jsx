@@ -40,7 +40,7 @@ export default function QCOrders({ api }) {
         setLoading(true);
         try {
             const { data } = await api.get('/sales/orders');
-            const qcOrders = (data.orders || []).filter(o => o.status === 'Procurement Pending' || o.status === 'QC Pending');
+            const qcOrders = (data.orders || []).filter(o => ['Procurement Pending', 'Warehouse Pending', 'QC Pending'].includes(o.status));
             const withItems = await Promise.all(
                 qcOrders.map(async (o) => {
                     try {
@@ -133,7 +133,10 @@ export default function QCOrders({ api }) {
                                     <LaptopDetailsCell items={order.items || []} />
                                 </td>
                                 <td className="p-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${order.status === 'QC Pending' ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'}`}>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                        order.status === 'QC Pending' ? 'bg-purple-100 text-purple-700' :
+                                        order.status === 'Warehouse Pending' ? 'bg-teal-100 text-teal-700' : 'bg-amber-100 text-amber-700'
+                                    }`}>
                                         {order.status}
                                     </span>
                                 </td>

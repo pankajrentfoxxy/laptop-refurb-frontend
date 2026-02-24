@@ -6,6 +6,7 @@ import PartsInventory from './components/PartsInventory';
 
 import Reports from './components/Reports';
 import Procurement from './components/Procurement';
+import Warehouse from './components/Warehouse';
 import Dispatch from './components/Dispatch';
 import BarcodeScanner from './components/BarcodeScanner';
 import DiagnosisForm from './components/DiagnosisForm';
@@ -254,8 +255,10 @@ function Layout({ children }) {
     { icon: BarChart3, label: 'Reports', path: '/reports', roles: ['manager', 'admin', 'floor_manager'], permission: 'reports_access' },
     { icon: Package, label: 'Parts', path: '/parts', roles: ['manager', 'admin', 'floor_manager'], permission: 'parts_access' },
     { icon: Truck, label: 'Procurement', path: '/procurement', roles: ['manager', 'admin', 'procurement'], permission: 'procurement_access' },
+    { icon: Package, label: 'Warehouse', path: '/warehouse', roles: ['manager', 'admin', 'warehouse'], permission: 'warehouse_access' },
     { icon: CheckCircle, label: 'QC Orders', path: '/qc-orders', roles: ['manager', 'admin', 'floor_manager', 'qc'], permission: 'qc_access' },
     { icon: Truck, label: 'Dispatch', path: '/dispatch', roles: ['manager', 'admin', 'floor_manager', 'dispatch'], permission: 'dispatch_access' },
+    { type: 'section', label: 'Team' },
     { icon: Users, label: 'Teams', path: '/teams', roles: ['manager', 'admin'] },
   ];
 
@@ -286,24 +289,38 @@ function Layout({ children }) {
           </div>
         </div>
 
-        <nav className="p-3 space-y-1">
-          {menuItems.filter(item =>
-            !item.roles ||
-            (user && (
-              item.roles.includes(user.role) ||
-              (item.permission && user.permissions?.includes(item.permission))
-            ))
-          ).map(({ icon: Icon, label, path }) => (
-            <Link
-              key={path}
-              to={path}
-              onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors text-sm"
-            >
-              <Icon className="w-5 h-5 text-gray-600" />
-              <span className="font-medium">{label}</span>
-            </Link>
-          ))}
+        <nav className="p-3 space-y-0.5 overflow-y-auto">
+          {menuItems.filter(item => {
+            if (item.type === 'section') {
+              const hasTeamAccess = user && ['manager', 'admin'].includes(user.role);
+              return hasTeamAccess;
+            }
+            return !item.roles ||
+              (user && (
+                item.roles.includes(user.role) ||
+                (item.permission && user.permissions?.includes(item.permission))
+              ));
+          }).map((item) => {
+            if (item.type === 'section') {
+              return (
+                <div key={`section-${item.label}`} className="px-3 pt-3 pb-1">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{item.label}</span>
+                </div>
+              );
+            }
+            const { icon: Icon, label, path } = item;
+            return (
+              <Link
+                key={path}
+                to={path}
+                onClick={() => setSidebarOpen(false)}
+                className="flex items-center gap-3 px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors text-sm"
+              >
+                <Icon className="w-5 h-5 text-gray-600 shrink-0" />
+                <span className="font-medium">{label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t text-xs text-gray-500">
@@ -1427,7 +1444,7 @@ function Teams() {
                   value={formData.role}
                   onChange={e => {
                     const role = e.target.value;
-                    const noTeamRequired = ['admin', 'sales', 'qc', 'dispatch', 'procurement'].includes(role);
+                    const noTeamRequired = ['admin', 'sales', 'qc', 'dispatch', 'procurement', 'warehouse'].includes(role);
                     let teamId = '';
                     if (!noTeamRequired) {
                       teamId = formData.team_id || teams[0]?.team_id || '';
@@ -1440,6 +1457,7 @@ function Teams() {
                   <option value="sales">Sales</option>
                   <option value="floor_manager">Floor Manager</option>
                   <option value="procurement">Procurement</option>
+                  <option value="warehouse">Warehouse</option>
                   <option value="qc">QC</option>
                   <option value="dispatch">Dispatch</option>
                   <option value="team_lead">Team Lead</option>
@@ -1457,10 +1475,10 @@ function Teams() {
                     setFormData({ ...formData, team_id: value ? parseInt(value) : '' });
                   }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                  disabled={['admin', 'sales', 'qc', 'dispatch', 'procurement'].includes(formData.role)}
+                    disabled={['admin', 'sales', 'qc', 'dispatch', 'procurement', 'warehouse'].includes(formData.role)}
                 >
                   <option value="">
-                    {['admin', 'sales', 'qc', 'dispatch', 'procurement'].includes(formData.role) ? 'No team required (standalone role)' : 'Select a team'}
+                    {['admin', 'sales', 'qc', 'dispatch', 'procurement', 'warehouse'].includes(formData.role) ? 'No team required (standalone role)' : 'Select a team'}
                   </option>
                   {teams.map(team => (
                     <option key={team.team_id} value={team.team_id}>
@@ -2741,6 +2759,7 @@ function App() {
           <Route path="/manager-dashboard" element={<ProtectedRoute allowedRoles={['admin', 'manager']}><Layout><ManagerDashboard api={api} /></Layout></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'sales']}><Layout><Orders api={api} /></Layout></ProtectedRoute>} />
           <Route path="/procurement" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'procurement']} allowedPermissions={['procurement_access']}><Layout><Procurement api={api} /></Layout></ProtectedRoute>} />
+          <Route path="/warehouse" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'warehouse']} allowedPermissions={['warehouse_access']}><Layout><Warehouse api={api} /></Layout></ProtectedRoute>} />
           <Route path="/qc-orders" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'floor_manager', 'qc']} allowedPermissions={['qc_access']}><Layout><QCOrders api={api} /></Layout></ProtectedRoute>} />
           <Route path="/dispatch" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'floor_manager', 'dispatch']} allowedPermissions={['dispatch_access']}><Layout><Dispatch api={api} /></Layout></ProtectedRoute>} />
           <Route path="/teams" element={<ProtectedRoute><Layout><Teams /></Layout></ProtectedRoute>} />
