@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Calendar, Hash, CheckCircle, Loader2, X, Eye, RefreshCw } from 'lucide-react';
+import { Truck, Calendar, Hash, CheckCircle, Loader2, X, Eye, RefreshCw, Laptop } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Dispatch({ api }) {
     const { user } = useAuth();
-    const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [dispatchModal, setDispatchModal] = useState(null);
     const [detailsModal, setDetailsModal] = useState(null);
+    const [laptopDetailsModal, setLaptopDetailsModal] = useState(false);
+    const [laptopDetails, setLaptopDetails] = useState([]);
+    const [laptopDetailsLoading, setLaptopDetailsLoading] = useState(false);
 
     const isDispatch = user?.team_name?.includes('Dispatch') ||
         user?.role === 'admin' ||
@@ -16,21 +18,26 @@ export default function Dispatch({ api }) {
         user?.role === 'dispatch' ||
         user?.permissions?.includes('dispatch_access');
 
+    const [allOrders, setAllOrders] = useState([]);
+    const [showDeliveredModal, setShowDeliveredModal] = useState(false);
+
     const loadOrders = React.useCallback(async () => {
         setLoading(true);
         try {
             const { data } = await api.get('/sales/orders');
-            // Show all orders in pipeline (view-only until QC Passed)
-            const pipelineOrders = (data.orders || []).filter(o =>
-                ['Procurement Pending', 'Warehouse Pending', 'QC Pending', 'QC Passed', 'Dispatched', 'Delivered'].includes(o.status)
-            );
-            setOrders(pipelineOrders);
+            const orders = data.orders || [];
+            setAllOrders(orders);
         } catch (e) {
             console.error(e);
         } finally {
             setLoading(false);
         }
     }, [api]);
+
+    const pipelineOrders = allOrders.filter(o =>
+        ['Procurement Pending', 'Warehouse Pending', 'QC Pending', 'QC Passed', 'Dispatched'].includes(o.status)
+    );
+    const deliveredOrders = allOrders.filter(o => o.status === 'Delivered');
 
     const canUpdateOrder = (status) => ['QC Passed', 'Dispatched', 'Delivered'].includes(status);
 
@@ -80,6 +87,20 @@ export default function Dispatch({ api }) {
         } catch (e) {
             console.error(e);
             alert('Failed to mark delivered: ' + (e.response?.data?.message || e.message));
+        }
+    };
+
+    const handleOpenLaptopDetails = async () => {
+        setLaptopDetailsModal(true);
+        setLaptopDetailsLoading(true);
+        try {
+            const { data } = await api.get('/sales/orders/pipeline-laptops');
+            setLaptopDetails(data.laptops || []);
+        } catch (e) {
+            console.error(e);
+            setLaptopDetails([]);
+        } finally {
+            setLaptopDetailsLoading(false);
         }
     };
 
@@ -144,45 +165,79 @@ export default function Dispatch({ api }) {
                     </h2>
                     <p className="text-gray-600">Manage order dispatches and shipping</p>
                 </div>
-                <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors">
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleOpenLaptopDetails}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors"
+                    >
+                        <Laptop className="w-4 h-4" />
+                        Laptop Details
+                    </button>
+                    <button
+                        onClick={() => setShowDeliveredModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-100 hover:bg-emerald-200 rounded-lg text-emerald-700 transition-colors"
+                    >
+                        <CheckCircle className="w-4 h-4" />
+                        View Delivered Orders ({deliveredOrders.length})
+                    </button>
+                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors">
+                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </button>
+                </div>
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
+            {/* Stats - Laptop counts */}
+            <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-8 gap-4">
+                <div className="bg-gradient-to-r from-teal-50 to-cyan-50 p-4 rounded-xl border border-teal-100">
+                    <div className="text-sm text-teal-600 font-medium">Warehouse</div>
+                    <div className="text-3xl font-bold text-teal-700">
+                        {pipelineOrders.filter(o => o.status === 'Warehouse Pending').reduce((s, o) => s + Number(o.items_count || 0), 0)}
+                    </div>
+                </div>
                 <div className="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100">
                     <div className="text-sm text-amber-600 font-medium">Procurement</div>
-                    <div className="text-3xl font-bold text-amber-700">{orders.filter(o => o.status === 'Procurement Pending').length}</div>
+                    <div className="text-3xl font-bold text-amber-700">
+                        {pipelineOrders.filter(o => o.status === 'Procurement Pending').reduce((s, o) => s + Number(o.items_count || 0), 0)}
+                    </div>
                 </div>
                 <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-100">
                     <div className="text-sm text-purple-600 font-medium">QC Pending</div>
-                    <div className="text-3xl font-bold text-purple-700">{orders.filter(o => o.status === 'QC Pending').length}</div>
+                    <div className="text-3xl font-bold text-purple-700">
+                        {pipelineOrders.filter(o => o.status === 'QC Pending').reduce((s, o) => s + Number(o.items_count || 0), 0)}
+                    </div>
                 </div>
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
-                    <div className="text-sm text-green-600 font-medium">QC Passed (Ready)</div>
-                    <div className="text-3xl font-bold text-green-700">{orders.filter(o => o.status === 'QC Passed').length}</div>
+                    <div className="text-sm text-green-600 font-medium">QC Passed</div>
+                    <div className="text-3xl font-bold text-green-700">
+                        {pipelineOrders.filter(o => o.status === 'QC Passed').reduce((s, o) => s + Number(o.items_count || 0), 0)}
+                    </div>
                 </div>
                 <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-4 rounded-xl border border-blue-100">
                     <div className="text-sm text-blue-600 font-medium">Dispatched Today</div>
-                    <div className="text-3xl font-bold text-blue-700">{orders.filter(o => o.status === 'Dispatched' && new Date(o.dispatched_at).toDateString() === new Date().toDateString()).length}</div>
+                    <div className="text-3xl font-bold text-blue-700">
+                        {pipelineOrders
+                            .filter(o => o.status === 'Dispatched' && new Date(o.dispatched_at).toDateString() === new Date().toDateString())
+                            .reduce((s, o) => s + Number(o.items_count || 0), 0)}
+                    </div>
                 </div>
                 <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-xl border border-emerald-100">
-                    <div className="text-sm text-emerald-600 font-medium">Laptops On The Way</div>
+                    <div className="text-sm text-emerald-600 font-medium">On The Way</div>
                     <div className="text-3xl font-bold text-emerald-700">
-                        {orders.reduce((sum, order) => sum + Number(order.on_the_way_laptops || 0), 0)}
+                        {pipelineOrders.reduce((sum, o) => sum + Number(o.on_the_way_laptops || 0), 0)}
                     </div>
                 </div>
                 <div className="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100">
-                    <div className="text-sm text-amber-600 font-medium">Delivered Laptops</div>
+                    <div className="text-sm text-amber-600 font-medium">Delivered</div>
                     <div className="text-3xl font-bold text-amber-700">
-                        {orders.reduce((sum, order) => sum + Number(order.delivered_laptops || 0), 0)}
+                        {deliveredOrders.reduce((sum, o) => sum + Number(o.delivered_laptops || o.items_count || 0), 0)}
                     </div>
                 </div>
                 <div className="bg-gradient-to-r from-gray-50 to-slate-50 p-4 rounded-xl border border-gray-200">
-                    <div className="text-sm text-gray-600 font-medium">Total In Dispatch Flow</div>
-                    <div className="text-3xl font-bold text-gray-700">{orders.length}</div>
+                    <div className="text-sm text-gray-600 font-medium">Total In Pipeline</div>
+                    <div className="text-3xl font-bold text-gray-700">
+                        {pipelineOrders.reduce((s, o) => s + Number(o.items_count || 0), 0)}
+                    </div>
                 </div>
             </div>
 
@@ -196,7 +251,7 @@ export default function Dispatch({ api }) {
                     <thead className="bg-gray-100">
                         <tr>
                             <th className="text-left p-3">Order ID</th>
-                            <th className="text-left p-3">Customer</th>
+                            <th className="text-left p-3">Company</th>
                             <th className="text-center p-3">Items</th>
                             <th className="text-left p-3">Status</th>
                             <th className="text-left p-3">Tracker</th>
@@ -206,12 +261,12 @@ export default function Dispatch({ api }) {
                         </tr>
                     </thead>
                     <tbody>
-                        {orders.map(order => (
+                        {pipelineOrders.map(order => (
                             <tr key={order.order_id} className="border-t hover:bg-gray-50">
                                 <td className="p-3 font-bold text-blue-600">#{order.order_id}</td>
                                 <td className="p-3">
-                                    <div className="font-medium">{order.customer_name}</div>
-                                    <div className="text-xs text-gray-400">{order.customer_email}</div>
+                                    <div className="font-medium">{order.company_name || order.customer_name || '-'}</div>
+                                    <div className="text-xs text-gray-400">GST: {order.gst_no || '-'}</div>
                                 </td>
                                 <td className="p-3 text-center font-bold">{order.items_count}</td>
                                 <td className="p-3">
@@ -270,7 +325,7 @@ export default function Dispatch({ api }) {
                                 </td>
                             </tr>
                         ))}
-                        {orders.length === 0 && !loading && (
+                        {pipelineOrders.length === 0 && !loading && (
                             <tr><td colSpan={8} className="p-8 text-center text-gray-500">No orders in pipeline</td></tr>
                         )}
                     </tbody>
@@ -355,6 +410,131 @@ export default function Dispatch({ api }) {
                 </div>
             )}
 
+            {/* Laptop Details Modal */}
+            {laptopDetailsModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="p-4 border-b flex justify-between items-center sticky top-0 bg-white">
+                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                <Laptop className="w-5 h-5 text-blue-600" />
+                                All Laptops in Pipeline
+                            </h3>
+                            <button
+                                onClick={() => setLaptopDetailsModal(false)}
+                                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-auto p-4">
+                            {laptopDetailsLoading ? (
+                                <div className="grid place-items-center py-16">
+                                    <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+                                </div>
+                            ) : laptopDetails.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">No laptops in pipeline</div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-gray-100 sticky top-0">
+                                            <tr>
+                                                <th className="text-left p-2">Order #</th>
+                                                <th className="text-left p-2">Machine #</th>
+                                                <th className="text-left p-2">Serial #</th>
+                                                <th className="text-left p-2">Brand</th>
+                                                <th className="text-left p-2">Processor</th>
+                                                <th className="text-left p-2">Generation</th>
+                                                <th className="text-left p-2">RAM</th>
+                                                <th className="text-left p-2">Storage / Model</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {laptopDetails.map((row, idx) => (
+                                                <tr key={`${row.order_id}-${row.item_id}-${idx}`} className="border-t hover:bg-gray-50">
+                                                    <td className="p-2 font-medium text-blue-600">#{row.order_id}</td>
+                                                    <td className="p-2 font-mono text-xs">{row.machine_number || '-'}</td>
+                                                    <td className="p-2 font-mono text-xs">{row.serial_number || '-'}</td>
+                                                    <td className="p-2">{row.brand || '-'}</td>
+                                                    <td className="p-2">{row.processor || '-'}</td>
+                                                    <td className="p-2">{row.generation || '-'}</td>
+                                                    <td className="p-2">{row.ram || '-'}</td>
+                                                    <td className="p-2">{row.storage || row.preferred_model || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delivered Orders Modal */}
+            {showDeliveredModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="p-4 border-b flex justify-between items-center sticky top-0 bg-white">
+                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                <CheckCircle className="w-5 h-5 text-emerald-600" />
+                                Delivered Orders
+                            </h3>
+                            <button
+                                onClick={() => setShowDeliveredModal(false)}
+                                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-auto p-4">
+                            {deliveredOrders.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">No delivered orders</div>
+                            ) : (
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-100">
+                                        <tr>
+                                            <th className="text-left p-3">Order ID</th>
+                                            <th className="text-left p-3">Company</th>
+                                            <th className="text-center p-3">Laptops</th>
+                                            <th className="text-left p-3">Tracker</th>
+                                            <th className="text-left p-3">Courier</th>
+                                            <th className="text-left p-3">Delivered At</th>
+                                            <th className="p-3">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {deliveredOrders.map(order => (
+                                            <tr key={order.order_id} className="border-t hover:bg-gray-50">
+                                                <td className="p-3 font-bold text-blue-600">#{order.order_id}</td>
+                                                <td className="p-3">
+                                                    <div className="font-medium">{order.company_name || order.customer_name || '-'}</div>
+                                                    <div className="text-xs text-gray-400">GST: {order.gst_no || '-'}</div>
+                                                </td>
+                                                <td className="p-3 text-center font-bold">{order.items_count}</td>
+                                                <td className="p-3 text-gray-600 font-mono text-xs">{order.tracker_id || '-'}</td>
+                                                <td className="p-3 text-gray-600">{order.courier_partner || '-'}</td>
+                                                <td className="p-3 text-gray-600 text-xs">
+                                                    {order.dispatched_at ? new Date(order.dispatched_at).toLocaleDateString() : '-'}
+                                                </td>
+                                                <td className="p-3">
+                                                    <button
+                                                        onClick={() => { setDetailsModal(order); setShowDeliveredModal(false); }}
+                                                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                                        title="View details"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Details Modal */}
             {detailsModal && (
                 <OrderDetailsQuick
@@ -425,7 +605,7 @@ function OrderDetailsQuick({ order, onClose, api, onRefresh, canEdit = true }) {
                 <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
                     <div>
                         <h3 className="text-xl font-bold">Order #{order.order_id}</h3>
-                        <p className="text-sm text-gray-500">{order.customer_name}</p>
+                        <p className="text-sm text-gray-500">{order.company_name || order.customer_name || '-'} {order.gst_no ? `| GST: ${order.gst_no}` : ''}</p>
                     </div>
                     <button onClick={onClose}><X className="w-6 h-6 text-gray-400" /></button>
                 </div>
@@ -447,7 +627,7 @@ function OrderDetailsQuick({ order, onClose, api, onRefresh, canEdit = true }) {
                                 <div key={idx} className="bg-gray-50 p-3 rounded-lg">
                                     <div>
                                         <div className="font-medium">{item.brand} {item.preferred_model}</div>
-                                        <div className="text-xs text-gray-500">{item.processor} | {item.ram} | {item.storage}</div>
+                                        <div className="text-xs text-gray-500">{item.processor}{item.generation ? ` | ${item.generation}` : ''} | {item.ram} | {item.storage}</div>
                                         {item.machine_number && <div className="text-xs text-blue-600 mt-1 font-mono">Machine: {item.machine_number}</div>}
                                         {item.serial_number && <div className="text-xs text-gray-500 font-mono">Serial: {item.serial_number}</div>}
                                         <div className="text-xs text-gray-500 mt-1">

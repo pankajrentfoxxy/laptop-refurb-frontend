@@ -208,6 +208,7 @@ export default function Sales({ api }) {
         return cart.map(item => ({
             brand: item.brand,
             processor: item.processor,
+            generation: item.generation || null,
             ram: item.ram,
             storage: item.storage,
             quantity: parseInt(item.quantity, 10) || 1,
@@ -570,7 +571,7 @@ export default function Sales({ api }) {
                     {cart.map((item, index) => (
                         <div key={`${item.brand}-${index}`} className="flex items-center justify-between border rounded-lg p-2">
                             <div className="text-sm">
-                                <div className="font-semibold">{item.brand} {item.processor} {item.ram} {item.storage}</div>
+                                <div className="font-semibold">{item.brand} {item.processor}{item.generation ? ` ${item.generation}` : ''} {item.ram} {item.storage}</div>
                                 <div className="text-xs text-gray-500">
                                     Gen: {item.generation || '-'} | {item.model || '-'} | Qty: {item.quantity}{item.maxQty ? ` / ${item.maxQty}` : ''} | Unit: ₹{item.unit_price || 0}
                                 </div>

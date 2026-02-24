@@ -9,7 +9,7 @@ function LaptopDetailsCell({ items }) {
             {items.map((item, idx) => (
                 <div key={idx} className="text-xs border-l-2 border-slate-200 pl-2 py-0.5">
                     <div className="font-medium text-slate-800">{item.brand} {item.preferred_model || ''}</div>
-                    <div className="text-gray-600">{item.processor} | {item.ram} | {item.storage}</div>
+                    <div className="text-gray-600">{item.processor}{item.generation ? ` | ${item.generation}` : ''} | {item.ram} | {item.storage}</div>
                     {item.machine_number ? (
                         <div className="text-blue-600 font-mono mt-0.5">Machine: {item.machine_number}</div>
                     ) : (
@@ -242,7 +242,7 @@ function OrderDetailsQuick({ order, onClose, api }) {
                             {items.map((item, idx) => (
                                 <div key={idx} className={`p-3 rounded-lg border ${item.machine_number ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
                                     <div className="font-medium">{item.brand} {item.preferred_model || ''}</div>
-                                    <div className="text-xs text-gray-600">{item.processor} | {item.ram} | {item.storage}</div>
+                                    <div className="text-xs text-gray-600">{item.processor}{item.generation ? ` | ${item.generation}` : ''} | {item.ram} | {item.storage}</div>
                                     {item.machine_number ? (
                                         <>
                                             <div className="text-sm text-blue-700 font-mono mt-1 font-semibold">Machine: {item.machine_number}</div>

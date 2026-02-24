@@ -127,7 +127,7 @@ export default function ManagerDashboard({ api }) {
                 </div>
                 <div className="bg-white border rounded-xl p-6">
                     <h3 className="font-bold mb-4 flex items-center gap-2">
-                        <Users className="w-4 h-4" /> Team Distribution
+                        <Users className="w-4 h-4" /> Assignee Distribution
                     </h3>
                     <div className="space-y-2 text-sm">
                         {data.teamWise.map(item => (

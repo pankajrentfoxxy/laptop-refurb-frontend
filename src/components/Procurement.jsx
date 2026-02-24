@@ -130,7 +130,7 @@ export default function Procurement({ api }) {
                                 </td>
                                 <td className="px-6 py-4">
                                     <div className="font-bold text-gray-900">{req.brand} {req.preferred_model || 'Laptop'}</div>
-                                    <div className="text-sm text-gray-500">{req.processor} / {req.ram} / {req.storage}</div>
+                                    <div className="text-sm text-gray-500">{req.processor}{req.generation ? ` / ${req.generation}` : ''} / {req.ram} / {req.storage}</div>
                                 </td>
                                 <td className="px-6 py-4">
                                     <div className="text-sm font-medium">{req.customer_name}</div>
@@ -325,7 +325,7 @@ function ScanAssignModal({ scanModal, onClose, api, onSuccess }) {
                     <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
                         <div className="text-sm text-blue-600 font-medium mb-1">Item Required:</div>
                         <div className="font-bold text-blue-900">{scanModal.brand} Laptop</div>
-                        <div className="text-sm text-blue-700">{scanModal.processor} | {scanModal.ram} | {scanModal.storage}</div>
+                        <div className="text-sm text-blue-700">{scanModal.processor}{scanModal.generation ? ` | ${scanModal.generation}` : ''} | {scanModal.ram} | {scanModal.storage}</div>
                     </div>
 
                     {showScanner ? (

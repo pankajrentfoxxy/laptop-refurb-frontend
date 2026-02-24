@@ -100,7 +100,7 @@ export default function Warehouse({ api }) {
                                 </td>
                                 <td className="px-6 py-4">
                                     <div className="font-bold text-gray-900">{item.brand} {item.preferred_model || 'Laptop'}</div>
-                                    <div className="text-sm text-gray-500">{item.processor} / {item.ram} / {item.storage}</div>
+                                    <div className="text-sm text-gray-500">{item.processor}{item.generation ? ` / ${item.generation}` : ''} / {item.ram} / {item.storage}</div>
                                 </td>
                                 <td className="px-6 py-4 font-mono text-sm">{item.machine_number || '-'}</td>
                                 <td className="px-6 py-4">

@@ -41,7 +41,7 @@ export default function LeadList({ api }) {
     const pageSize = 50;
 
     const canManage = ['admin', 'manager'].includes(user?.role);
-    const canAssignLeads = user?.role === 'admin';
+    const canAssignLeads = ['admin', 'manager'].includes(user?.role);
     const canManualCreate = ['admin', 'manager', 'sales'].includes(user?.role);
 
     const filtersRef = useRef({ statusFilter, sourceFilter, assigneeFilter, dateFrom, dateTo, search });
@@ -479,6 +479,7 @@ export default function LeadList({ api }) {
 
                     <div className="border-t border-slate-100 pt-4 space-y-3">
                         <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Distribute unassigned equally</div>
+                        <p className="text-xs text-slate-500">Select who receives unassigned leads. Future leads (manual, upload, email) will also be auto-assigned to the selected users until you change this.</p>
                         <div className="flex flex-wrap gap-2">
                             {salesUsers.map((salesUser) => (
                                 <label key={salesUser.user_id} className="flex items-center gap-2 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50 cursor-pointer">
