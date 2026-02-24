@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Package, CheckCircle, RefreshCw, X, Loader2, Scan, RotateCcw } from 'lucide-react';
+import { Package, CheckCircle, RefreshCw, X, Scan, RotateCcw } from 'lucide-react';
 import BarcodeScanner from './BarcodeScanner';
 
 export default function Warehouse({ api }) {
