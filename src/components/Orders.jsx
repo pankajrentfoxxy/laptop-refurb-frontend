@@ -184,7 +184,7 @@ export default function Orders({ api }) {
                     <thead className="bg-gray-100">
                         <tr>
                             <th className="text-left p-3">Order ID</th>
-                            <th className="text-left p-3">Customer</th>
+                            <th className="text-left p-3">Company</th>
                             <th className="text-center p-3">Type</th>
                             <th className="text-center p-3">Items</th>
                             <th className="text-left p-3">Status</th>
@@ -199,7 +199,7 @@ export default function Orders({ api }) {
                             <tr key={order.order_id} className="border-t hover:bg-gray-50">
                                 <td className="p-3 font-bold text-blue-600">#{order.order_id}</td>
                                 <td className="p-3">
-                                    <div className="font-medium">{order.customer_name}</div>
+                                    <div className="font-medium">{order.company_name || order.customer_name || '-'}</div>
                                     <div className="text-xs text-gray-400">{order.customer_email}</div>
                                 </td>
                                 <td className="p-3 text-center">
@@ -363,7 +363,7 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
                         <h3 className="text-lg font-bold flex items-center gap-2">
                             <ClipboardList className="text-blue-600 w-4 h-4" /> Order #{order.order_id}
                         </h3>
-                        <p className="text-xs text-gray-500">{order.customer_name} | Owner: {details?.order?.owner_name || order.owner_name || 'Unknown'}</p>
+                        <p className="text-xs text-gray-500">{order.company_name || order.customer_name || '-'} | Owner: {details?.order?.owner_name || order.owner_name || 'Unknown'}</p>
                     </div>
                     <button onClick={onClose}><X className="w-5 h-5 text-gray-400" /></button>
                 </div>

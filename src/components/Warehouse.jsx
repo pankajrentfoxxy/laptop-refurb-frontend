@@ -88,7 +88,7 @@ export default function Warehouse({ api }) {
                             <th className="px-6 py-3 font-medium text-gray-500 text-sm">Order ID</th>
                             <th className="px-6 py-3 font-medium text-gray-500 text-sm">Laptop</th>
                             <th className="px-6 py-3 font-medium text-gray-500 text-sm">Machine #</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-sm">Customer</th>
+                            <th className="px-6 py-3 font-medium text-gray-500 text-sm">Company</th>
                             <th className="px-6 py-3 font-medium text-gray-500 text-sm">Actions</th>
                         </tr>
                     </thead>
@@ -104,8 +104,8 @@ export default function Warehouse({ api }) {
                                 </td>
                                 <td className="px-6 py-4 font-mono text-sm">{item.machine_number || '-'}</td>
                                 <td className="px-6 py-4">
-                                    <div className="text-sm font-medium">{item.customer_name}</div>
-                                    <div className="text-xs text-gray-500">{item.customer_email}</div>
+                                    <div className="text-sm font-medium">{item.company_name || item.customer_name || '-'}</div>
+                                    <div className="text-xs text-gray-500">{item.gst_no ? `GST: ${item.gst_no}` : item.customer_email}</div>
                                 </td>
                                 <td className="px-6 py-4">
                                     <div className="flex gap-2 flex-wrap">

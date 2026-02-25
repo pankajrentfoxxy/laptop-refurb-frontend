@@ -116,7 +116,7 @@ export default function Procurement({ api }) {
                         <tr>
                             <th className="px-6 py-3 font-medium text-gray-500 text-sm">Order ID</th>
                             <th className="px-6 py-3 font-medium text-gray-500 text-sm">Item Needed</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-sm">Customer</th>
+                            <th className="px-6 py-3 font-medium text-gray-500 text-sm">Company</th>
                             <th className="px-6 py-3 font-medium text-gray-500 text-sm">Status</th>
                             <th className="px-6 py-3 font-medium text-gray-500 text-sm">Vendor Info</th>
                             <th className="px-6 py-3 font-medium text-gray-500 text-sm">Actions</th>
@@ -133,7 +133,7 @@ export default function Procurement({ api }) {
                                     <div className="text-sm text-gray-500">{req.processor}{req.generation ? ` / ${req.generation}` : ''} / {req.ram} / {req.storage}</div>
                                 </td>
                                 <td className="px-6 py-4">
-                                    <div className="text-sm font-medium">{req.customer_name}</div>
+                                    <div className="text-sm font-medium">{req.company_name || req.customer_name || '-'}</div>
                                 </td>
                                 <td className="px-6 py-4">
                                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${req.status === 'New' ? 'bg-red-100 text-red-600' :
