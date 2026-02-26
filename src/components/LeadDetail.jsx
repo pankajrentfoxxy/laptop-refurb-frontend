@@ -138,8 +138,8 @@ export default function LeadDetail({ api }) {
     }, [loadLead]);
 
     useEffect(() => {
-        api.get('/inventory/specs').then(({ data }) => {
-            setSpecs(data.specs || { brands: [], processors: [], generations: [], rams: [], storages: [] });
+        api.get('/inventory/catalog/options').then(({ data }) => {
+            setSpecs(data.options || { brands: [], processors: [], generations: [], rams: [], storages: [] });
         }).catch(() => {});
     }, [api]);
 
