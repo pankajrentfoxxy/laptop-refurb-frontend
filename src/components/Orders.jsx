@@ -269,6 +269,7 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
         ['sales', 'admin', 'manager'].includes(user?.role) ||
         user?.permissions?.includes('sales_access');
     const canEditPrice = user?.role === 'admin' && details?.order?.status && !['Cancelled', 'Delivered', 'Dispatched'].includes(details.order.status);
+    const canEditQuantity = canEditPrice;
     const availableOfficeAddresses = React.useMemo(() => {
         const fromProfile = details?.customer_addresses || [];
         if (fromProfile.length) return fromProfile;
@@ -303,7 +304,8 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
                         delivery_contact_phone: item.delivery_contact_phone || '',
                         delivery_address: item.delivery_address || '',
                         delivery_pincode: item.delivery_pincode || '',
-                        unit_price: item.unit_price ?? ''
+                        unit_price: item.unit_price ?? '',
+                        quantity: item.quantity ?? 1
                     };
                 });
                 setItemEdits(initialEdits);
@@ -334,9 +336,14 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
         try {
             const currentItem = details?.items?.find(i => i.item_id === itemId);
             const newPrice = parseFloat(payload.unit_price);
+            const newQty = parseInt(payload.quantity, 10);
             const priceChanged = Number.isFinite(newPrice) && parseFloat(currentItem?.unit_price) !== newPrice;
-            if (priceChanged) {
-                await api.put(`/sales/orders/${order.order_id}/items/${itemId}/price`, { unit_price: parseFloat(payload.unit_price) });
+            const quantityChanged = Number.isInteger(newQty) && newQty >= 1 && (currentItem?.quantity ?? 1) !== newQty;
+            if (priceChanged || quantityChanged) {
+                const body = {};
+                if (priceChanged) body.unit_price = parseFloat(payload.unit_price);
+                if (quantityChanged) body.quantity = newQty;
+                await api.put(`/sales/orders/${order.order_id}/items/${itemId}/price`, body);
             }
             await api.put(`/sales/orders/${order.order_id}/items/${itemId}/logistics`, {
                 delivery_mode: payload.delivery_mode,
@@ -352,11 +359,12 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
             setItemEdits(prev => {
                 const next = { ...prev };
                 (data.items || []).forEach((it) => {
-                    next[it.item_id] = { ...(next[it.item_id] || {}), unit_price: it.unit_price ?? '' };
+                    next[it.item_id] = { ...(next[it.item_id] || {}), unit_price: it.unit_price ?? '', quantity: it.quantity ?? 1 };
                 });
                 return next;
             });
-            alert(priceChanged ? 'Rent price and laptop details updated' : 'Laptop details updated');
+            const updates = [priceChanged && 'rent price', quantityChanged && 'quantity'].filter(Boolean);
+            alert(updates.length ? `${updates.join(' and ')} and laptop details updated` : 'Laptop details updated');
             onRefresh();
         } catch (e) {
             alert('Failed to update: ' + (e.response?.data?.message || e.message));
@@ -522,7 +530,24 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
                                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${getItemStatusBadge(item.status)}`}>{item.status}</span>
                                                     <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${getTrackingStatusBadge(item.tracking_status)}`}>{item.tracking_status || 'Not Dispatched'}</span>
                                                     <div className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-1 flex-wrap">
-                                                        Qty: {item.quantity} |
+                                                        {canEditQuantity ? (
+                                                            <>
+                                                                <span>Qty:</span>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    className="w-10 border border-slate-200 rounded px-1 py-0.5 text-[10px]"
+                                                                    value={itemEdits[item.item_id]?.quantity ?? item.quantity ?? 1}
+                                                                    onChange={(e) => setItemEdits(prev => ({
+                                                                        ...prev,
+                                                                        [item.item_id]: { ...(prev[item.item_id] || {}), quantity: e.target.value }
+                                                                    }))}
+                                                                />
+                                                            </>
+                                                        ) : (
+                                                            <>Qty: {item.quantity}</>
+                                                        )}
+                                                        <span>|</span>
                                                         {canEditPrice ? (
                                                             <>
                                                                 <span>₹</span>

@@ -3,7 +3,7 @@ import { Search, Upload, UserPlus, RefreshCw, AlertTriangle, ChevronDown, Chevro
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const STATUS_OPTIONS = ['All', 'Pending', 'Cold', 'Warm', 'Hot', 'Gone', 'Hold', 'Rejected', 'Call Back', 'Deal'];
+const STATUS_OPTIONS = ['Pending', 'Cold', 'Warm', 'Hot', 'Gone', 'Hold', 'Rejected', 'Call Back', 'Deal'];
 const LEAD_STATUS_OPTIONS = ['Pending', 'Cold', 'Warm', 'Hot', 'Gone', 'Hold', 'Rejected', 'Call Back', 'Deal'];
 const SOURCE_OPTIONS = ['Google', 'LinkedIn', 'Team', 'References', 'Apollo'];
 const todayDate = () => new Date().toISOString().slice(0, 10);
@@ -13,7 +13,8 @@ export default function LeadList({ api }) {
     const navigate = useNavigate();
     const [leads, setLeads] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [statusFilter, setStatusFilter] = useState('All');
+    const [statusFilter, setStatusFilter] = useState([]);
+    const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
     const [sourceFilter, setSourceFilter] = useState('All');
     const [assigneeFilter, setAssigneeFilter] = useState('');
     const [dateFrom, setDateFrom] = useState('');
@@ -62,7 +63,9 @@ export default function LeadList({ api }) {
         setLoading(true);
         try {
             const params = {};
-            if (f.statusFilter !== 'All') params.status = f.statusFilter;
+            if (Array.isArray(f.statusFilter) && f.statusFilter.length > 0) {
+                params.status = f.statusFilter.join(',');
+            }
             if (f.sourceFilter !== 'All') params.source = f.sourceFilter;
             if (f.assigneeFilter) params.assigned_to = f.assigneeFilter;
             if (f.dateFrom) params.date_from = f.dateFrom;
@@ -294,13 +297,51 @@ export default function LeadList({ api }) {
                             className="w-full pl-8 pr-2 py-1.5 text-sm border border-slate-200 rounded focus:ring-1 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
                         />
                     </div>
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="border border-slate-200 rounded px-2 py-1.5 text-sm text-slate-700 bg-white focus:ring-1 focus:ring-indigo-500/20 focus:border-indigo-500 shrink-0 w-[110px]"
-                    >
-                        {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <div className="relative shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => setStatusDropdownOpen(prev => !prev)}
+                            className="border border-slate-200 rounded px-2 py-1.5 text-sm text-slate-700 bg-white focus:ring-1 focus:ring-indigo-500/20 focus:border-indigo-500 w-[140px] text-left flex items-center justify-between gap-1"
+                        >
+                            <span className="truncate">
+                                {statusFilter.length === 0 ? 'All Status' : statusFilter.length === 1 ? statusFilter[0] : `${statusFilter.length} selected`}
+                            </span>
+                            <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {statusDropdownOpen && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setStatusDropdownOpen(false)} />
+                                <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px] max-h-60 overflow-y-auto">
+                                    <label className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-slate-50 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={statusFilter.length === 0}
+                                            onChange={(e) => { if (e.target.checked) setStatusFilter([]); setStatusDropdownOpen(false); }}
+                                            className="rounded"
+                                        />
+                                        <span>All</span>
+                                    </label>
+                                    {STATUS_OPTIONS.map((s) => (
+                                        <label key={s} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-slate-50 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={statusFilter.includes(s)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setStatusFilter(prev => [...prev, s]);
+                                                    } else {
+                                                        setStatusFilter(prev => prev.filter(x => x !== s));
+                                                    }
+                                                }}
+                                                className="rounded"
+                                            />
+                                            <span>{s}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
                     <select
                         value={sourceFilter}
                         onChange={(e) => setSourceFilter(e.target.value)}
@@ -340,7 +381,7 @@ export default function LeadList({ api }) {
                     <button
                         type="button"
                         onClick={() => {
-                            setStatusFilter('All');
+                            setStatusFilter([]);
                             setSourceFilter('All');
                             setAssigneeFilter('');
                             setDateFrom('');
