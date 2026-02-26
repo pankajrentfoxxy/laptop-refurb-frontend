@@ -41,11 +41,13 @@ export default function LeadList({ api }) {
     const [showAssignPanel, setShowAssignPanel] = useState(false);
     const [expandedLeadId, setExpandedLeadId] = useState(null);
     const [statusDropdownLeadId, setStatusDropdownLeadId] = useState(null);
+    const [followUpLeadId, setFollowUpLeadId] = useState(null);
     const pageSize = 50;
 
     const toggleRowExpand = (leadId) => {
         setExpandedLeadId(prev => prev === leadId ? null : leadId);
         setStatusDropdownLeadId(null);
+        setFollowUpLeadId(null);
     };
 
     const canManage = ['admin', 'manager'].includes(user?.role);
@@ -544,7 +546,7 @@ export default function LeadList({ api }) {
                             <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Source</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Status</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Assignee</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Follow-up</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wide">Follow-up</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Action</th>
                         </tr>
                     </thead>
@@ -581,17 +583,33 @@ export default function LeadList({ api }) {
                                     <td className="px-4 py-3 text-slate-600">{lead.companyName || '-'}</td>
                                     <td className="px-4 py-3 text-slate-600">{lead.source || '-'}</td>
                                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                        <StatusDropdown
+                                        <div className="flex flex-col gap-1">
+                                            <StatusDropdown
+                                                lead={lead}
+                                                api={api}
+                                                statusDropdownLeadId={statusDropdownLeadId}
+                                                setStatusDropdownLeadId={setStatusDropdownLeadId}
+                                                onStatusUpdated={loadLeads}
+                                                user={user}
+                                            />
+                                            {(lead.brand || lead.processor || lead.generation || lead.ram || lead.storage) && (
+                                                <div className="text-[10px] text-slate-500 truncate max-w-[140px]" title={[lead.brand, lead.processor, lead.generation, lead.ram, lead.storage].filter(Boolean).join(' | ')}>
+                                                    {[lead.brand, lead.processor, lead.generation, lead.ram, lead.storage].filter(Boolean).join(' | ')}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-600">{lead.assignedUser?.name || '-'}</td>
+                                    <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                        <FollowUpCell
                                             lead={lead}
                                             api={api}
-                                            statusDropdownLeadId={statusDropdownLeadId}
-                                            setStatusDropdownLeadId={setStatusDropdownLeadId}
-                                            onStatusUpdated={loadLeads}
+                                            followUpLeadId={followUpLeadId}
+                                            setFollowUpLeadId={(id) => { setFollowUpLeadId(id); setStatusDropdownLeadId(null); }}
+                                            onUpdated={loadLeads}
                                             user={user}
                                         />
                                     </td>
-                                    <td className="px-4 py-3 text-slate-600">{lead.assignedUser?.name || '-'}</td>
-                                    <td className="px-4 py-3 text-slate-600">{lead.followUpDate ? new Date(lead.followUpDate).toLocaleDateString() : '-'}</td>
                                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                                         <button
                                             onClick={() => navigate(`/leads/${lead.leadId}`)}
@@ -652,9 +670,106 @@ export default function LeadList({ api }) {
     );
 }
 
+function toDateTimeLocalValue(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function FollowUpCell({ lead, api, followUpLeadId, setFollowUpLeadId, onUpdated, user }) {
+    const [followUpValue, setFollowUpValue] = useState(toDateTimeLocalValue(lead.followUpDate));
+    const [saving, setSaving] = useState(false);
+    const currentUserId = user?.user_id ?? user?.userId;
+    const canUpdate = ['admin', 'manager', 'sales'].includes(user?.role) && (user?.role !== 'sales' || String(lead.assignedUserId) === String(currentUserId));
+    const isOpen = followUpLeadId === lead.leadId;
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            await api.put(`/leads/${lead.leadId}/follow-up`, {
+                follow_up_date: followUpValue ? new Date(followUpValue).toISOString() : null
+            });
+            setFollowUpLeadId(null);
+            onUpdated?.();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to update follow-up');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleClear = async () => {
+        setSaving(true);
+        try {
+            await api.put(`/leads/${lead.leadId}/follow-up`, { follow_up_date: null });
+            setFollowUpValue('');
+            setFollowUpLeadId(null);
+            onUpdated?.();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to clear follow-up');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (!canUpdate) {
+        return (
+            <span className="text-slate-600 text-sm inline-block">
+                {lead.followUpDate ? new Date(lead.followUpDate).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+            </span>
+        );
+    }
+
+    return (
+        <div className="relative flex justify-center items-center">
+            <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setFollowUpLeadId(isOpen ? null : lead.leadId); setFollowUpValue(toDateTimeLocalValue(lead.followUpDate)); }}
+                className="text-slate-600 hover:text-slate-800 text-sm hover:underline"
+            >
+                {lead.followUpDate ? new Date(lead.followUpDate).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : 'Set'}
+            </button>
+            {isOpen && (
+                <>
+                    <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setFollowUpLeadId(null); }} />
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg p-3 min-w-[200px]">
+                        <input
+                            type="datetime-local"
+                            value={followUpValue}
+                            onChange={(e) => setFollowUpValue(e.target.value)}
+                            className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 mb-2"
+                        />
+                        <div className="flex gap-1">
+                            <button
+                                type="button"
+                                onClick={handleSave}
+                                disabled={saving}
+                                className="flex-1 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                                {saving ? '...' : 'Save'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleClear}
+                                disabled={saving}
+                                className="py-1.5 px-2 text-xs font-medium text-slate-600 border border-slate-200 rounded hover:bg-slate-50"
+                            >
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
 function StatusDropdown({ lead, api, statusDropdownLeadId, setStatusDropdownLeadId, onStatusUpdated, user }) {
     const [updating, setUpdating] = useState(false);
-    const canUpdate = ['admin', 'manager', 'sales'].includes(user?.role) && (user?.role !== 'sales' || lead.assignedUserId === user?.userId);
+    const currentUserId = user?.user_id ?? user?.userId;
+    const canUpdate = ['admin', 'manager', 'sales'].includes(user?.role) && (user?.role !== 'sales' || String(lead.assignedUserId) === String(currentUserId));
     const isOpen = statusDropdownLeadId === lead.leadId;
 
     const handleStatusSelect = async (newStatus) => {

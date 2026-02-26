@@ -74,7 +74,8 @@ export default function LeadDetail({ api }) {
     const [loading, setLoading] = useState(true);
     const [status, setStatus] = useState('Cold');
     const [rejectionReason, setRejectionReason] = useState('');
-    const [notes, setNotes] = useState('');
+    const [config, setConfig] = useState({ brand: '', processor: '', generation: '', ram: '', storage: '' });
+    const [specs, setSpecs] = useState({ brands: [], processors: [], generations: [], rams: [], storages: [] });
     const [followUpDate, setFollowUpDate] = useState('');
     const [researchForm, setResearchForm] = useState(INITIAL_RESEARCH_FORM);
     const [editingResearch, setEditingResearch] = useState(false);
@@ -109,6 +110,13 @@ export default function LeadDetail({ api }) {
             setLead(data.lead);
             setStatus(data.lead.status);
             setFollowUpDate(toDateTimeLocalValue(data.lead.followUpDate));
+            setConfig({
+                brand: data.lead.brand || '',
+                processor: data.lead.processor || '',
+                generation: data.lead.generation || '',
+                ram: data.lead.ram || '',
+                storage: data.lead.storage || ''
+            });
             setResearchForm(mapResearchToForm(data.lead.research));
             setBasicForm({
                 name: data.lead.name || '',
@@ -129,14 +137,23 @@ export default function LeadDetail({ api }) {
         loadLead();
     }, [loadLead]);
 
+    useEffect(() => {
+        api.get('/inventory/specs').then(({ data }) => {
+            setSpecs(data.specs || { brands: [], processors: [], generations: [], rams: [], storages: [] });
+        }).catch(() => {});
+    }, [api]);
+
     const handleStatusUpdate = async () => {
         try {
             await api.put(`/leads/${id}/status`, {
                 status,
                 rejection_reason: rejectionReason,
-                notes
+                brand: config.brand || undefined,
+                processor: config.processor || undefined,
+                generation: config.generation || undefined,
+                ram: config.ram || undefined,
+                storage: config.storage || undefined
             });
-            setNotes('');
             setRejectionReason('');
             loadLead();
         } catch (err) {
@@ -147,10 +164,8 @@ export default function LeadDetail({ api }) {
     const handleFollowUp = async () => {
         try {
             await api.put(`/leads/${id}/follow-up`, {
-                follow_up_date: followUpDate ? new Date(followUpDate).toISOString() : null,
-                notes
+                follow_up_date: followUpDate ? new Date(followUpDate).toISOString() : null
             });
-            setNotes('');
             loadLead();
         } catch (err) {
             alert('Failed to update follow-up');
@@ -403,7 +418,29 @@ export default function LeadDetail({ api }) {
                             {status === 'Rejected' && (
                                 <input value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} placeholder="Rejection reason" className="w-full border rounded-lg px-3 py-2 text-sm" />
                             )}
-                            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" className="w-full border rounded-lg px-3 py-2 text-sm" rows="2" />
+                            <div className="text-xs font-medium text-gray-500 mb-1">Config (requirement)</div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <select value={config.brand} onChange={(e) => setConfig(c => ({ ...c, brand: e.target.value }))} className="border rounded-lg px-2 py-1.5 text-sm">
+                                    <option value="">Brand</option>
+                                    {specs.brands?.map(b => <option key={b} value={b}>{b}</option>)}
+                                </select>
+                                <select value={config.processor} onChange={(e) => setConfig(c => ({ ...c, processor: e.target.value }))} className="border rounded-lg px-2 py-1.5 text-sm">
+                                    <option value="">Processor</option>
+                                    {specs.processors?.map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                                <select value={config.generation} onChange={(e) => setConfig(c => ({ ...c, generation: e.target.value }))} className="border rounded-lg px-2 py-1.5 text-sm">
+                                    <option value="">Generation</option>
+                                    {specs.generations?.map(g => <option key={g} value={g}>{g}</option>)}
+                                </select>
+                                <select value={config.ram} onChange={(e) => setConfig(c => ({ ...c, ram: e.target.value }))} className="border rounded-lg px-2 py-1.5 text-sm">
+                                    <option value="">RAM</option>
+                                    {specs.rams?.map(r => <option key={r} value={r}>{r}</option>)}
+                                </select>
+                                <select value={config.storage} onChange={(e) => setConfig(c => ({ ...c, storage: e.target.value }))} className="border rounded-lg px-2 py-1.5 text-sm col-span-2">
+                                    <option value="">Storage</option>
+                                    {specs.storages?.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
                             <button onClick={handleStatusUpdate} className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm flex items-center justify-center gap-2">
                                 <CheckCircle className="w-4 h-4" /> Update Status
                             </button>
@@ -489,7 +526,7 @@ export default function LeadDetail({ api }) {
                 {expandedSections.remarks && (
                     <div className="px-4 pb-4 border-t">
                         <div className="flex items-center justify-between mt-3 mb-2">
-                            <span className="text-sm text-gray-500">Customer queries & notes</span>
+                            <span className="text-sm text-gray-500">Customer queries</span>
                             <button onClick={() => setRemarksOpen(true)} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
                                 <MessageSquarePlus className="w-4 h-4" /> Add Remark
                             </button>
