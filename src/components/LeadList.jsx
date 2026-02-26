@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Upload, UserPlus, RefreshCw, AlertTriangle, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { Search, Upload, UserPlus, RefreshCw, AlertTriangle, ChevronDown, ChevronRight, ChevronUp, Plus, MessageSquarePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const STATUS_OPTIONS = ['All', 'Pending', 'Cold', 'Warm', 'Hot', 'Gone', 'Hold', 'Rejected', 'Call Back', 'Deal'];
+const LEAD_STATUS_OPTIONS = ['Pending', 'Cold', 'Warm', 'Hot', 'Gone', 'Hold', 'Rejected', 'Call Back', 'Deal'];
 const SOURCE_OPTIONS = ['Google', 'LinkedIn', 'Team', 'References', 'Apollo'];
 const todayDate = () => new Date().toISOString().slice(0, 10);
 
@@ -38,7 +39,14 @@ export default function LeadList({ api }) {
     const [creatingLead, setCreatingLead] = useState(false);
     const [showManualEntry, setShowManualEntry] = useState(false);
     const [showAssignPanel, setShowAssignPanel] = useState(false);
+    const [expandedLeadId, setExpandedLeadId] = useState(null);
+    const [statusDropdownLeadId, setStatusDropdownLeadId] = useState(null);
     const pageSize = 50;
+
+    const toggleRowExpand = (leadId) => {
+        setExpandedLeadId(prev => prev === leadId ? null : leadId);
+        setStatusDropdownLeadId(null);
+    };
 
     const canManage = ['admin', 'manager'].includes(user?.role);
     const canAssignLeads = ['admin', 'manager'].includes(user?.role);
@@ -542,45 +550,69 @@ export default function LeadList({ api }) {
                     </thead>
                     <tbody>
                         {pagedLeads.map(lead => (
-                            <tr
-                                key={lead.leadId}
-                                className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors"
-                            >
-                                {canAssignLeads && (
+                            <React.Fragment key={lead.leadId}>
+                                <tr
+                                    onClick={() => toggleRowExpand(lead.leadId)}
+                                    className={`border-t border-slate-100 hover:bg-slate-50/50 transition-colors cursor-pointer ${expandedLeadId === lead.leadId ? 'bg-slate-50' : ''}`}
+                                >
+                                    {canAssignLeads && (
+                                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedLeads.includes(lead.leadId)}
+                                                onChange={() => toggleSelect(lead.leadId)}
+                                                className="rounded border-slate-300"
+                                            />
+                                        </td>
+                                    )}
+                                    <td className="px-4 py-3">
+                                        <span className="inline-flex items-center gap-1">
+                                            {expandedLeadId === lead.leadId ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />}
+                                            <span className="font-mono text-slate-600">#{lead.leadId}</span>
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-600">{lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '-'}</td>
+                                    <td className="px-4 py-3">
+                                        <div className="font-medium text-slate-800">{lead.name}</div>
+                                        <div className="text-xs text-slate-500">{lead.email || '-'}</div>
+                                        <div className="text-xs text-slate-500">{lead.phone || '-'}</div>
+                                        {lead.isDuplicate && <span className="text-xs text-amber-600">Duplicate</span>}
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-600">{lead.companyName || '-'}</td>
+                                    <td className="px-4 py-3 text-slate-600">{lead.source || '-'}</td>
                                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedLeads.includes(lead.leadId)}
-                                            onChange={() => toggleSelect(lead.leadId)}
-                                            className="rounded border-slate-300"
+                                        <StatusDropdown
+                                            lead={lead}
+                                            api={api}
+                                            statusDropdownLeadId={statusDropdownLeadId}
+                                            setStatusDropdownLeadId={setStatusDropdownLeadId}
+                                            onStatusUpdated={loadLeads}
+                                            user={user}
                                         />
                                     </td>
+                                    <td className="px-4 py-3 text-slate-600">{lead.assignedUser?.name || '-'}</td>
+                                    <td className="px-4 py-3 text-slate-600">{lead.followUpDate ? new Date(lead.followUpDate).toLocaleDateString() : '-'}</td>
+                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                        <button
+                                            onClick={() => navigate(`/leads/${lead.leadId}`)}
+                                            className="text-indigo-600 hover:text-indigo-700 font-medium text-xs"
+                                        >
+                                            View
+                                        </button>
+                                    </td>
+                                </tr>
+                                {expandedLeadId === lead.leadId && (
+                                    <tr>
+                                        <td colSpan={canAssignLeads ? 10 : 9} className="px-4 py-0 bg-slate-50/50 border-b border-slate-100">
+                                            <ExpandedRowContent
+                                                leadId={lead.leadId}
+                                                api={api}
+                                                onRemarkSaved={loadLeads}
+                                            />
+                                        </td>
+                                    </tr>
                                 )}
-                                <td className="px-4 py-3 font-mono text-slate-600">#{lead.leadId}</td>
-                                <td className="px-4 py-3 text-slate-600">{lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '-'}</td>
-                                <td className="px-4 py-3">
-                                    <div className="font-medium text-slate-800">{lead.name}</div>
-                                    <div className="text-xs text-slate-500">{lead.email || lead.phone || '-'}</div>
-                                    {lead.isDuplicate && <span className="text-xs text-amber-600">Duplicate</span>}
-                                </td>
-                                <td className="px-4 py-3 text-slate-600">{lead.companyName || '-'}</td>
-                                <td className="px-4 py-3 text-slate-600">{lead.source || '-'}</td>
-                                <td className="px-4 py-3">
-                                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
-                                        {lead.status}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3 text-slate-600">{lead.assignedUser?.name || '-'}</td>
-                                <td className="px-4 py-3 text-slate-600">{lead.followUpDate ? new Date(lead.followUpDate).toLocaleDateString() : '-'}</td>
-                                <td className="px-4 py-3">
-                                    <button
-                                        onClick={() => navigate(`/leads/${lead.leadId}`)}
-                                        className="text-indigo-600 hover:text-indigo-700 font-medium text-xs"
-                                    >
-                                        View
-                                    </button>
-                                </td>
-                            </tr>
+                            </React.Fragment>
                         ))}
                         {leads.length === 0 && !loading && (
                             <tr>
@@ -615,6 +647,185 @@ export default function LeadList({ api }) {
                     </button>
                 </div>
             </div>
+
+        </div>
+    );
+}
+
+function StatusDropdown({ lead, api, statusDropdownLeadId, setStatusDropdownLeadId, onStatusUpdated, user }) {
+    const [updating, setUpdating] = useState(false);
+    const canUpdate = ['admin', 'manager', 'sales'].includes(user?.role) && (user?.role !== 'sales' || lead.assignedUserId === user?.userId);
+    const isOpen = statusDropdownLeadId === lead.leadId;
+
+    const handleStatusSelect = async (newStatus) => {
+        if (newStatus === lead.status) {
+            setStatusDropdownLeadId(null);
+            return;
+        }
+        let rejectionReason = null;
+        if (newStatus === 'Rejected') {
+            rejectionReason = window.prompt('Rejection reason (required):');
+            if (!rejectionReason?.trim()) return;
+        }
+        setUpdating(true);
+        try {
+            await api.put(`/leads/${lead.leadId}/status`, {
+                status: newStatus,
+                rejection_reason: rejectionReason || undefined,
+                notes: rejectionReason || undefined
+            });
+            setStatusDropdownLeadId(null);
+            onStatusUpdated?.();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to update status');
+        } finally {
+            setUpdating(false);
+        }
+    };
+
+    if (!canUpdate) {
+        return (
+            <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                {lead.status}
+            </span>
+        );
+    }
+
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setStatusDropdownLeadId(isOpen ? null : lead.leadId); }}
+                disabled={updating}
+                className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+            >
+                <span className="flex items-center gap-1">{updating ? '...' : lead.status} {isOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}</span>
+            </button>
+            {isOpen && (
+                <>
+                    <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setStatusDropdownLeadId(null); }} />
+                    <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[120px]">
+                        {LEAD_STATUS_OPTIONS.map(s => (
+                            <button
+                                key={s}
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleStatusSelect(s); }}
+                                className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 ${s === lead.status ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-700'}`}
+                            >
+                                {s}
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+function ExpandedRowContent({ leadId, api, onRemarkSaved }) {
+    const [lead, setLead] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [remarkText, setRemarkText] = useState('');
+    const [savingRemark, setSavingRemark] = useState(false);
+
+    const loadLead = useCallback(async () => {
+        setLoading(true);
+        try {
+            const { data } = await api.get(`/leads/${leadId}`);
+            setLead(data.lead);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }, [api, leadId]);
+
+    useEffect(() => {
+        loadLead();
+    }, [loadLead]);
+
+    const handleAddRemark = async (e) => {
+        e.preventDefault();
+        if (!remarkText.trim()) return;
+        setSavingRemark(true);
+        try {
+            const { data } = await api.post(`/leads/${leadId}/remarks`, { note: remarkText.trim() });
+            setLead(prev => ({ ...prev, remarks: [data.remark, ...(prev.remarks || [])] }));
+            setRemarkText('');
+            onRemarkSaved?.();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to add remark');
+        } finally {
+            setSavingRemark(false);
+        }
+    };
+
+    const mergedItems = useMemo(() => {
+        if (!lead) return [];
+        const activities = (lead.activities || []).map(a => ({
+            type: 'activity',
+            id: a.activityId,
+            text: a.action === 'status_updated' ? `Status: ${a.statusTo || '-'}` : a.action.replace(/_/g, ' '),
+            detail: a.notes,
+            user: a.user?.name,
+            createdAt: a.createdAt
+        }));
+        const remarks = (lead.remarks || []).map(r => ({
+            type: 'remark',
+            id: r.remarkId,
+            text: r.note,
+            detail: null,
+            user: r.userName,
+            createdAt: r.createdAt
+        }));
+        return [...activities, ...remarks]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 5);
+    }, [lead]);
+
+    return (
+        <div className="py-3 px-4">
+            {loading ? (
+                <div className="text-center py-6 text-slate-500 text-sm">Loading...</div>
+            ) : (
+                <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-slate-600 mb-2">Last 5 activities</div>
+                        <div className="space-y-2">
+                            {mergedItems.length === 0 ? (
+                                <div className="text-xs text-slate-500 py-2">No activity yet.</div>
+                            ) : (
+                                mergedItems.map(item => (
+                                    <div key={`${item.type}-${item.id}`} className="border border-slate-100 rounded p-2 text-xs bg-white">
+                                        <div className="font-medium text-slate-700">{item.text}</div>
+                                        {item.detail && <div className="text-slate-500 mt-0.5">{item.detail}</div>}
+                                        <div className="text-slate-400 mt-1">{item.user || '-'} · {new Date(item.createdAt).toLocaleString()}</div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                    <div className="sm:w-64 shrink-0">
+                        <form onSubmit={handleAddRemark} className="border border-slate-200 rounded-lg p-3 bg-white">
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Add Remark</label>
+                            <textarea
+                                value={remarkText}
+                                onChange={e => setRemarkText(e.target.value)}
+                                placeholder="Customer query or note..."
+                                rows={2}
+                                className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                            <button
+                                type="submit"
+                                disabled={savingRemark || !remarkText.trim()}
+                                className="mt-2 w-full py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-1"
+                            >
+                                <MessageSquarePlus className="w-3 h-3" /> {savingRemark ? 'Saving...' : 'Save'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

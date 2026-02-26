@@ -268,6 +268,7 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
     const canSalesEdit =
         ['sales', 'admin', 'manager'].includes(user?.role) ||
         user?.permissions?.includes('sales_access');
+    const canEditPrice = user?.role === 'admin' && details?.order?.status && !['Cancelled', 'Delivered', 'Dispatched'].includes(details.order.status);
     const availableOfficeAddresses = React.useMemo(() => {
         const fromProfile = details?.customer_addresses || [];
         if (fromProfile.length) return fromProfile;
@@ -301,7 +302,8 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
                         delivery_contact_name: item.delivery_contact_name || '',
                         delivery_contact_phone: item.delivery_contact_phone || '',
                         delivery_address: item.delivery_address || '',
-                        delivery_pincode: item.delivery_pincode || ''
+                        delivery_pincode: item.delivery_pincode || '',
+                        unit_price: item.unit_price ?? ''
                     };
                 });
                 setItemEdits(initialEdits);
@@ -330,13 +332,34 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
         if (!payload) return;
         setSavingItemId(itemId);
         try {
-            await api.put(`/sales/orders/${order.order_id}/items/${itemId}/logistics`, payload);
+            const currentItem = details?.items?.find(i => i.item_id === itemId);
+            const newPrice = parseFloat(payload.unit_price);
+            const priceChanged = Number.isFinite(newPrice) && parseFloat(currentItem?.unit_price) !== newPrice;
+            if (priceChanged) {
+                await api.put(`/sales/orders/${order.order_id}/items/${itemId}/price`, { unit_price: parseFloat(payload.unit_price) });
+            }
+            await api.put(`/sales/orders/${order.order_id}/items/${itemId}/logistics`, {
+                delivery_mode: payload.delivery_mode,
+                customer_address_id: payload.customer_address_id || undefined,
+                shipping_charge: payload.shipping_charge,
+                delivery_contact_name: payload.delivery_contact_name,
+                delivery_contact_phone: payload.delivery_contact_phone,
+                delivery_address: payload.delivery_address,
+                delivery_pincode: payload.delivery_pincode
+            });
             const { data } = await api.get(`/sales/orders/${order.order_id}`);
             setDetails(data);
-            alert('Laptop details updated');
+            setItemEdits(prev => {
+                const next = { ...prev };
+                (data.items || []).forEach((it) => {
+                    next[it.item_id] = { ...(next[it.item_id] || {}), unit_price: it.unit_price ?? '' };
+                });
+                return next;
+            });
+            alert(priceChanged ? 'Rent price and laptop details updated' : 'Laptop details updated');
             onRefresh();
         } catch (e) {
-            alert('Failed to update laptop details: ' + (e.response?.data?.message || e.message));
+            alert('Failed to update: ' + (e.response?.data?.message || e.message));
         } finally {
             setSavingItemId(null);
         }
@@ -430,8 +453,20 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
                                     <div className="font-semibold text-xs">{details.order.lockin_period_days ?? 0}</div>
                                 </div>
                                 <div className="bg-gray-50 p-2 rounded text-sm">
+                                    <div className="text-[10px] text-gray-500">Subtotal</div>
+                                    <div className="font-semibold text-xs">₹{parseFloat(details.order.subtotal_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded text-sm">
+                                    <div className="text-[10px] text-gray-500">GST (Items)</div>
+                                    <div className="font-semibold text-xs">₹{parseFloat(details.order.items_gst_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded text-sm">
                                     <div className="text-[10px] text-gray-500">Security</div>
                                     <div className="font-semibold text-xs">₹{parseFloat(details.order.security_amount || 0).toFixed(2)}</div>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded text-sm">
+                                    <div className="text-[10px] text-gray-500">Grand Total</div>
+                                    <div className="font-semibold text-xs text-blue-600">₹{parseFloat(details.order.grand_total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
                                 </div>
                                 <div className="bg-gray-50 p-2 rounded text-sm">
                                     <div className="text-[10px] text-gray-500">Estimate ID</div>
@@ -486,7 +521,28 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
                                                 <div className="text-right flex-shrink-0">
                                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${getItemStatusBadge(item.status)}`}>{item.status}</span>
                                                     <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${getTrackingStatusBadge(item.tracking_status)}`}>{item.tracking_status || 'Not Dispatched'}</span>
-                                                    <div className="text-[10px] text-gray-500 mt-0.5">Qty: {item.quantity} | ₹{item.unit_price}</div>
+                                                    <div className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-1 flex-wrap">
+                                                        Qty: {item.quantity} |
+                                                        {canEditPrice ? (
+                                                            <>
+                                                                <span>₹</span>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    step="0.01"
+                                                                    className="w-16 border border-slate-200 rounded px-1 py-0.5 text-[10px]"
+                                                                    value={itemEdits[item.item_id]?.unit_price ?? item.unit_price ?? ''}
+                                                                    onChange={(e) => setItemEdits(prev => ({
+                                                                        ...prev,
+                                                                        [item.item_id]: { ...(prev[item.item_id] || {}), unit_price: e.target.value }
+                                                                    }))}
+                                                                />
+                                                                <span className="text-slate-400">(rent)</span>
+                                                            </>
+                                                        ) : (
+                                                            <>₹{item.unit_price}</>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="mt-2 grid grid-cols-1 md:grid-cols-6 gap-1.5 text-[11px]">
