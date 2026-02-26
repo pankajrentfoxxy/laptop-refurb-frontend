@@ -523,8 +523,8 @@ export default function LeadList({ api }) {
                 </div>
             )}
 
-            <div className="border border-slate-200 rounded-lg bg-white overflow-hidden">
-                <table className="w-full text-sm">
+            <div className="border border-slate-200 rounded-lg bg-white overflow-x-auto">
+                <table className="w-full text-sm min-w-[900px]">
                     <thead className="bg-slate-50">
                         <tr>
                             {canAssignLeads && (
@@ -544,10 +544,10 @@ export default function LeadList({ api }) {
                             <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Lead</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Company</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Source</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Status</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wide">Status</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Assignee</th>
                             <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wide">Follow-up</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Action</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wide whitespace-nowrap">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -582,8 +582,8 @@ export default function LeadList({ api }) {
                                     </td>
                                     <td className="px-4 py-3 text-slate-600">{lead.companyName || '-'}</td>
                                     <td className="px-4 py-3 text-slate-600">{lead.source || '-'}</td>
-                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                        <div className="flex flex-col gap-1">
+                                    <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex flex-col gap-1 items-center">
                                             <StatusDropdown
                                                 lead={lead}
                                                 api={api}
@@ -593,7 +593,7 @@ export default function LeadList({ api }) {
                                                 user={user}
                                             />
                                             {(lead.brand || lead.processor || lead.generation || lead.ram || lead.storage) && (
-                                                <div className="text-[10px] text-slate-500 truncate max-w-[140px]" title={[lead.brand, lead.processor, lead.generation, lead.ram, lead.storage].filter(Boolean).join(' | ')}>
+                                                <div className="text-[10px] text-slate-500 truncate max-w-[120px] text-center" title={[lead.brand, lead.processor, lead.generation, lead.ram, lead.storage].filter(Boolean).join(' | ')}>
                                                     {[lead.brand, lead.processor, lead.generation, lead.ram, lead.storage].filter(Boolean).join(' | ')}
                                                 </div>
                                             )}
@@ -610,7 +610,7 @@ export default function LeadList({ api }) {
                                             user={user}
                                         />
                                     </td>
-                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                    <td className="px-4 py-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                         <button
                                             onClick={() => navigate(`/leads/${lead.leadId}`)}
                                             className="text-indigo-600 hover:text-indigo-700 font-medium text-xs"
