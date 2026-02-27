@@ -84,11 +84,12 @@ export default function LeadDetail({ api }) {
     const [savingBasic, setSavingBasic] = useState(false);
     const [basicForm, setBasicForm] = useState({
         name: '',
-        brand: '',
         company_name: '',
+        company_brand: '',
         email: '',
         phone: '',
-        city: ''
+        city: '',
+        personal_remarks: ''
     });
     const [addressForm, setAddressForm] = useState({ concern_person: '', mobile_no: '', address: '', pincode: '', address_type: 'Shipping' });
     const [savingAddress, setSavingAddress] = useState(false);
@@ -96,7 +97,7 @@ export default function LeadDetail({ api }) {
     const [remarkText, setRemarkText] = useState('');
     const [savingRemark, setSavingRemark] = useState(false);
     const [deletingRemarkId, setDeletingRemarkId] = useState(null);
-    const [expandedSections, setExpandedSections] = useState({ status: true, followup: false, addresses: false, remarks: true });
+    const [expandedSections, setExpandedSections] = useState({ status: true, followup: false, addresses: false, personalRemarks: true, remarks: true });
     const navigate = useNavigate();
 
     const toggleSection = (key) => {
@@ -120,11 +121,12 @@ export default function LeadDetail({ api }) {
             setResearchForm(mapResearchToForm(data.lead.research));
             setBasicForm({
                 name: data.lead.name || '',
-                brand: data.lead.brand || '',
                 company_name: data.lead.companyName || '',
+                company_brand: data.lead.companyBrand ?? data.lead.company_brand ?? '',
                 email: data.lead.email || '',
                 phone: data.lead.phone || '',
-                city: data.lead.city || ''
+                city: data.lead.city || '',
+                personal_remarks: data.lead.personalRemarks ?? data.lead.personal_remarks ?? ''
             });
         } catch (err) {
             console.error(err);
@@ -215,16 +217,23 @@ export default function LeadDetail({ api }) {
     const handleSaveBasic = async () => {
         setSavingBasic(true);
         try {
-            await api.put(`/leads/${id}/basic`, {
+            const payload = {
                 name: basicForm.name,
-                brand: basicForm.brand,
                 company_name: basicForm.company_name,
+                company_brand: basicForm.company_brand,
                 email: basicForm.email,
                 phone: basicForm.phone,
-                city: basicForm.city
-            });
+                city: basicForm.city,
+                personal_remarks: basicForm.personal_remarks ?? ''
+            };
+            const { data } = await api.put(`/leads/${id}/basic`, payload);
             setEditingBasic(false);
-            loadLead();
+            if (data?.lead) {
+                const pr = data.lead.personalRemarks ?? data.lead.personal_remarks ?? basicForm.personal_remarks ?? '';
+                setLead(prev => ({ ...prev, personalRemarks: pr, personal_remarks: pr }));
+                setBasicForm(prev => ({ ...prev, personal_remarks: pr }));
+            }
+            await loadLead();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to update lead details');
         } finally {
@@ -324,18 +333,19 @@ export default function LeadDetail({ api }) {
                             />
                         </div>
                         <div>
-                            <label className="text-xs text-gray-500">Brand</label>
-                            <input
-                                value={basicForm.brand}
-                                onChange={(e) => setBasicForm(prev => ({ ...prev, brand: e.target.value }))}
-                                className="w-full border rounded-lg px-3 py-2"
-                            />
-                        </div>
-                        <div>
                             <label className="text-xs text-gray-500">Company Name</label>
                             <input
                                 value={basicForm.company_name}
                                 onChange={(e) => setBasicForm(prev => ({ ...prev, company_name: e.target.value }))}
+                                className="w-full border rounded-lg px-3 py-2"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs text-gray-500">Company Brand</label>
+                            <input
+                                value={basicForm.company_brand}
+                                onChange={(e) => setBasicForm(prev => ({ ...prev, company_brand: e.target.value }))}
+                                placeholder="Lead company brand name (e.g. Tata, Infosys)"
                                 className="w-full border rounded-lg px-3 py-2"
                             />
                         </div>
@@ -364,6 +374,16 @@ export default function LeadDetail({ api }) {
                             />
                         </div>
                         <div className="md:col-span-2">
+                            <label className="text-xs text-gray-500">Personal Remarks</label>
+                            <textarea
+                                value={basicForm.personal_remarks}
+                                onChange={(e) => setBasicForm(prev => ({ ...prev, personal_remarks: e.target.value }))}
+                                placeholder="Sales notes about this lead..."
+                                rows={2}
+                                className="w-full border rounded-lg px-3 py-2"
+                            />
+                        </div>
+                        <div className="md:col-span-2">
                             <button
                                 onClick={handleSaveBasic}
                                 disabled={savingBasic}
@@ -376,8 +396,8 @@ export default function LeadDetail({ api }) {
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
                     <div>
-                        <div className="text-gray-500">Brand</div>
-                        <div className="font-semibold">{lead.brand || '-'}</div>
+                        <div className="text-gray-500">Company Brand</div>
+                        <div className="font-semibold">{lead.companyBrand ?? lead.company_brand ?? '-'}</div>
                     </div>
                     <div>
                         <div className="text-gray-500">Email</div>
@@ -390,6 +410,10 @@ export default function LeadDetail({ api }) {
                     <div>
                         <div className="text-gray-500">Assigned To</div>
                         <div className="font-semibold">{lead.assignedUser?.name || '-'}</div>
+                    </div>
+                    <div className="md:col-span-2">
+                        <div className="text-gray-500">Personal Remarks</div>
+                        <div className="font-semibold text-gray-700 whitespace-pre-wrap">{(lead.personalRemarks ?? lead.personal_remarks ?? '').trim() || '-'}</div>
                     </div>
                 </div>
                 {lead.isDuplicate && (
@@ -418,7 +442,7 @@ export default function LeadDetail({ api }) {
                             {status === 'Rejected' && (
                                 <input value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} placeholder="Rejection reason" className="w-full border rounded-lg px-3 py-2 text-sm" />
                             )}
-                            <div className="text-xs font-medium text-gray-500 mb-1">Config (requirement)</div>
+                            <div className="text-xs font-medium text-gray-500 mb-1">Laptop config (requirement)</div>
                             <div className="grid grid-cols-2 gap-2">
                                 <select value={config.brand} onChange={(e) => setConfig(c => ({ ...c, brand: e.target.value }))} className="border rounded-lg px-2 py-1.5 text-sm">
                                     <option value="">Brand</option>
@@ -676,23 +700,7 @@ export default function LeadDetail({ api }) {
                 )}
             </div>
 
-            {lead.status === 'Deal' && (
-                <div className="bg-white border rounded-xl p-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="font-bold">Create Order</h3>
-                            <p className="text-sm text-gray-500">Proceed to Sales Order page to select inventory or create procurement.</p>
-                        </div>
-                        <button
-                            onClick={handleGoToSales}
-                            className="bg-green-600 text-white rounded-lg px-4 py-2 font-semibold"
-                        >
-                            Go to Sales
-                        </button>
-                    </div>
-                </div>
-            )}
-
+            {/* Activities - after Company Research */}
             <div className="bg-white border rounded-xl p-6">
                 <h3 className="font-bold mb-3">Activities</h3>
                 <div className="space-y-3">
@@ -720,6 +728,24 @@ export default function LeadDetail({ api }) {
                     )}
                 </div>
             </div>
+
+            {lead.status === 'Deal' && (
+                <div className="bg-white border rounded-xl p-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="font-bold">Create Order</h3>
+                            <p className="text-sm text-gray-500">Proceed to Sales Order page to select inventory or create procurement.</p>
+                        </div>
+                        <button
+                            onClick={handleGoToSales}
+                            className="bg-green-600 text-white rounded-lg px-4 py-2 font-semibold"
+                        >
+                            Go to Sales
+                        </button>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }

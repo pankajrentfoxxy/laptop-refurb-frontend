@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Upload, UserPlus, RefreshCw, AlertTriangle, ChevronDown, ChevronRight, ChevronUp, Plus, MessageSquarePlus } from 'lucide-react';
+import { Search, Upload, UserPlus, RefreshCw, AlertTriangle, ChevronDown, ChevronRight, ChevronUp, Plus, MessageSquarePlus, Save, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -630,6 +630,11 @@ export default function LeadList({ api }) {
                                     <td className="px-2 py-2 min-w-0" onClick={(e) => e.stopPropagation()}>
                                         <div className="font-medium text-slate-800 truncate" title={lead.name}>{lead.name}</div>
                                         <div className="text-[10px] text-slate-500 truncate" title={lead.email || '-'}>{lead.email || '-'}</div>
+                                        {(lead.personalRemarks || lead.personal_remarks) && (
+                                            <div className="text-[9px] text-slate-400 truncate italic" title={lead.personalRemarks || lead.personal_remarks}>
+                                                {lead.personalRemarks || lead.personal_remarks}
+                                            </div>
+                                        )}
                                         <div className="text-[10px] text-slate-500 truncate" title={lead.phone || '-'}>{lead.phone || '-'}</div>
                                         {lead.isDuplicate && <span className="text-[10px] text-amber-600">Dup</span>}
                                     </td>
@@ -683,6 +688,7 @@ export default function LeadList({ api }) {
                                                 leadId={lead.leadId}
                                                 api={api}
                                                 onRemarkSaved={loadLeads}
+                                                user={user}
                                             />
                                         </td>
                                     </tr>
@@ -895,17 +901,23 @@ function StatusDropdown({ lead, api, statusDropdownLeadId, setStatusDropdownLead
     );
 }
 
-function ExpandedRowContent({ leadId, api, onRemarkSaved }) {
+function ExpandedRowContent({ leadId, api, onRemarkSaved, user }) {
     const [lead, setLead] = useState(null);
     const [loading, setLoading] = useState(true);
     const [remarkText, setRemarkText] = useState('');
     const [savingRemark, setSavingRemark] = useState(false);
+    const [personalRemarks, setPersonalRemarks] = useState('');
+    const [savingPersonalRemarks, setSavingPersonalRemarks] = useState(false);
+    const [editingPersonalRemarks, setEditingPersonalRemarks] = useState(false);
+    const currentUserId = user?.user_id ?? user?.userId;
+    const canEditPersonalRemarks = ['admin', 'manager', 'sales'].includes(user?.role) && (user?.role !== 'sales' || String(lead?.assignedUserId) === String(currentUserId));
 
     const loadLead = useCallback(async () => {
         setLoading(true);
         try {
             const { data } = await api.get(`/leads/${leadId}`);
             setLead(data.lead);
+            setPersonalRemarks(data.lead?.personalRemarks ?? data.lead?.personal_remarks ?? '');
         } catch (err) {
             console.error(err);
         } finally {
@@ -916,6 +928,20 @@ function ExpandedRowContent({ leadId, api, onRemarkSaved }) {
     useEffect(() => {
         loadLead();
     }, [loadLead]);
+
+    const handleSavePersonalRemarks = async () => {
+        setSavingPersonalRemarks(true);
+        try {
+            await api.put(`/leads/${leadId}/basic`, { personal_remarks: personalRemarks });
+            setLead(prev => ({ ...prev, personalRemarks: personalRemarks }));
+            setEditingPersonalRemarks(false);
+            onRemarkSaved?.();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to save personal remarks');
+        } finally {
+            setSavingPersonalRemarks(false);
+        }
+    };
 
     const handleAddRemark = async (e) => {
         e.preventDefault();
@@ -978,7 +1004,49 @@ function ExpandedRowContent({ leadId, api, onRemarkSaved }) {
                             )}
                         </div>
                     </div>
-                    <div className="sm:w-64 shrink-0">
+                    <div className="sm:w-72 shrink-0 flex flex-col gap-3">
+                        <div className="border border-slate-200 rounded-lg p-3 bg-white">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-semibold text-slate-600">Personal Remarks</span>
+                                {canEditPersonalRemarks && !editingPersonalRemarks && (
+                                    <button
+                                        onClick={() => setEditingPersonalRemarks(true)}
+                                        className="text-slate-500 hover:text-indigo-600 p-0.5"
+                                        title="Edit"
+                                    >
+                                        <Pencil className="w-3 h-3" />
+                                    </button>
+                                )}
+                            </div>
+                            {canEditPersonalRemarks && editingPersonalRemarks ? (
+                                <div className="space-y-2">
+                                    <textarea
+                                        value={personalRemarks}
+                                        onChange={(e) => setPersonalRemarks(e.target.value)}
+                                        placeholder="Sales notes about this lead..."
+                                        rows={3}
+                                        className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                    />
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={handleSavePersonalRemarks}
+                                            disabled={savingPersonalRemarks}
+                                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                                        >
+                                            <Save className="w-3 h-3" /> {savingPersonalRemarks ? 'Saving...' : 'Save'}
+                                        </button>
+                                        <button
+                                            onClick={() => { setEditingPersonalRemarks(false); setPersonalRemarks(lead?.personalRemarks ?? lead?.personal_remarks ?? ''); }}
+                                            className="px-2 py-1 text-xs font-medium border border-slate-200 rounded hover:bg-slate-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-xs text-slate-600 whitespace-pre-wrap min-h-[2rem]">{lead?.personalRemarks || lead?.personal_remarks || '-'}</div>
+                            )}
+                        </div>
                         <form onSubmit={handleAddRemark} className="border border-slate-200 rounded-lg p-3 bg-white">
                             <label className="block text-xs font-medium text-slate-600 mb-1">Add Remark</label>
                             <textarea
