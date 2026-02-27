@@ -14,11 +14,11 @@ export default function Customers({ api }) {
     const [addModal, setAddModal] = useState(false);
     const [uploadModal, setUploadModal] = useState(false);
 
-    // Admin only: edit name, GST, company. Sales: view + add/update address
+    // Admin, Manager, Sales: edit profile and add customer. Sales: add/update address. Admin only: bulk upload
     const isAdmin = user?.role === 'admin';
-    const canEditProfile = isAdmin || user?.permissions?.includes('customers_edit');
-    const canEditAddress = isAdmin || user?.permissions?.includes('customers_edit') || user?.permissions?.includes('sales_access');
-    const canAddCustomer = isAdmin || user?.permissions?.includes('customers_edit');
+    const canEditProfile = ['admin', 'manager', 'sales'].includes(user?.role) || user?.permissions?.includes('customers_edit') || user?.permissions?.includes('sales_access');
+    const canEditAddress = canEditProfile;
+    const canAddCustomer = canEditProfile;
     const canBulkUpload = isAdmin;
 
     const loadCustomers = React.useCallback(async () => {
@@ -60,7 +60,7 @@ export default function Customers({ api }) {
                         <Users className="w-5 h-5 text-indigo-600" />
                         Customers
                     </h1>
-                    <p className="text-sm text-slate-500 mt-0.5">View and manage customer details. Sales can add/update addresses.</p>
+                    <p className="text-sm text-slate-500 mt-0.5">View and manage customer details. Admin, Manager, and Sales can add and edit customers.</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                     <button onClick={loadCustomers} className="p-2 rounded-lg hover:bg-slate-100 border border-slate-200 text-slate-600 transition-colors">

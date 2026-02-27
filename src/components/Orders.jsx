@@ -261,6 +261,8 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
     const [processing, setProcessing] = useState(false);
     const [itemEdits, setItemEdits] = useState({});
     const [savingItemId, setSavingItemId] = useState(null);
+    const [orderChargesEdit, setOrderChargesEdit] = useState({ security_amount: '', lockin_period_days: '' });
+    const [savingCharges, setSavingCharges] = useState(false);
 
     const canDispatchFlow =
         user?.role !== 'sales' &&
@@ -268,8 +270,9 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
     const canSalesEdit =
         ['sales', 'admin', 'manager'].includes(user?.role) ||
         user?.permissions?.includes('sales_access');
-    const canEditPrice = user?.role === 'admin' && details?.order?.status && !['Cancelled', 'Delivered', 'Dispatched'].includes(details.order.status);
+    const canEditPrice = canSalesEdit && details?.order?.status && !['Cancelled', 'Delivered', 'Dispatched'].includes(details.order.status);
     const canEditQuantity = canEditPrice;
+    const canEditSecurityLockin = canSalesEdit && details?.order?.status && !['Cancelled', 'Delivered', 'Dispatched'].includes(details.order.status);
     const availableOfficeAddresses = React.useMemo(() => {
         const fromProfile = details?.customer_addresses || [];
         if (fromProfile.length) return fromProfile;
@@ -309,10 +312,39 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
                     };
                 });
                 setItemEdits(initialEdits);
+                setOrderChargesEdit({
+                    security_amount: data?.order?.security_amount ?? '',
+                    lockin_period_days: data?.order?.lockin_period_days ?? ''
+                });
             } catch (e) { console.error(e); } finally { setLoading(false); }
         };
         loadDetails();
     }, [order.order_id, api]);
+
+    const handleSaveCharges = async () => {
+        setSavingCharges(true);
+        try {
+            const body = {};
+            const sec = parseFloat(orderChargesEdit.security_amount);
+            if (Number.isFinite(sec) && sec >= 0) body.security_amount = sec;
+            const lock = parseInt(orderChargesEdit.lockin_period_days, 10);
+            if (Number.isInteger(lock) && lock >= 0) body.lockin_period_days = lock;
+            if (Object.keys(body).length === 0) {
+                alert('Enter valid Security and/or Lock-in to update');
+                return;
+            }
+            await api.put(`/sales/orders/${order.order_id}/charges`, body);
+            const { data } = await api.get(`/sales/orders/${order.order_id}`);
+            setDetails(data);
+            setOrderChargesEdit({ security_amount: data?.order?.security_amount ?? '', lockin_period_days: data?.order?.lockin_period_days ?? '' });
+            alert('Security and lock-in updated');
+            onRefresh();
+        } catch (e) {
+            alert('Failed: ' + (e.response?.data?.message || e.message));
+        } finally {
+            setSavingCharges(false);
+        }
+    };
 
     const handleCancelOrder = async () => {
         const reason = window.prompt('Reason for cancellation (optional):', 'Cancelled by customer');
@@ -458,7 +490,17 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
                                 </div>
                                 <div className="bg-gray-50 p-2 rounded text-sm">
                                     <div className="text-[10px] text-gray-500">Lock-in (Days)</div>
-                                    <div className="font-semibold text-xs">{details.order.lockin_period_days ?? 0}</div>
+                                    {canEditSecurityLockin ? (
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            className="w-full border border-slate-200 rounded px-1.5 py-0.5 text-xs font-semibold"
+                                            value={orderChargesEdit.lockin_period_days}
+                                            onChange={(e) => setOrderChargesEdit(prev => ({ ...prev, lockin_period_days: e.target.value }))}
+                                        />
+                                    ) : (
+                                        <div className="font-semibold text-xs">{details.order.lockin_period_days ?? 0}</div>
+                                    )}
                                 </div>
                                 <div className="bg-gray-50 p-2 rounded text-sm">
                                     <div className="text-[10px] text-gray-500">Subtotal</div>
@@ -470,12 +512,37 @@ function OrderDetailsModal({ order, onClose, api, onRefresh, user }) {
                                 </div>
                                 <div className="bg-gray-50 p-2 rounded text-sm">
                                     <div className="text-[10px] text-gray-500">Security</div>
-                                    <div className="font-semibold text-xs">₹{parseFloat(details.order.security_amount || 0).toFixed(2)}</div>
+                                    {canEditSecurityLockin ? (
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-xs">₹</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                className="w-full border border-slate-200 rounded px-1.5 py-0.5 text-xs font-semibold"
+                                                value={orderChargesEdit.security_amount}
+                                                onChange={(e) => setOrderChargesEdit(prev => ({ ...prev, security_amount: e.target.value }))}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="font-semibold text-xs">₹{parseFloat(details.order.security_amount || 0).toFixed(2)}</div>
+                                    )}
                                 </div>
                                 <div className="bg-gray-50 p-2 rounded text-sm">
                                     <div className="text-[10px] text-gray-500">Grand Total</div>
                                     <div className="font-semibold text-xs text-blue-600">₹{parseFloat(details.order.grand_total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
                                 </div>
+                                {canEditSecurityLockin && (
+                                    <div className="bg-gray-50 p-2 rounded text-sm flex items-end">
+                                        <button
+                                            onClick={handleSaveCharges}
+                                            disabled={savingCharges}
+                                            className="px-2 py-1 bg-slate-800 text-white rounded text-[10px] hover:bg-slate-900 flex items-center gap-1 disabled:opacity-60"
+                                        >
+                                            <Save className="w-3 h-3" /> {savingCharges ? 'Saving...' : 'Save Security & Lock-in'}
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="bg-gray-50 p-2 rounded text-sm">
                                     <div className="text-[10px] text-gray-500">Estimate ID</div>
                                     <div className="font-semibold text-xs truncate">{details.order.estimate_id || '-'}</div>
