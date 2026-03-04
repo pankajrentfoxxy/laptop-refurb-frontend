@@ -128,7 +128,7 @@ function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="admin@rentfoxxy.com"
+                    placeholder="Enter your email"
                     required
                   />
                 </div>
@@ -198,9 +198,6 @@ function Login() {
               </form>
             )}
 
-            <div className="mt-6 text-sm text-slate-500">
-              Demo: admin@rentfoxxy.com / admin123
-            </div>
           </div>
         </div>
 
