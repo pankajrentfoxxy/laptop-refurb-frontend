@@ -1245,10 +1245,11 @@ function Teams() {
     password: '',
     mobile_no: '',
     role: 'team_member',
-    team_id: ''
+    team_ids: []
   });
   const [permissionModal, setPermissionModal] = useState(null);
   const [mobileEditModal, setMobileEditModal] = useState(null);
+  const [teamsEditModal, setTeamsEditModal] = useState(null);
   const canManageUsers = user && ['admin', 'manager'].includes(user.role);
   const PERMISSIONS = [
     { key: 'inventory_access', label: 'Inventory' },
@@ -1278,7 +1279,7 @@ function Teams() {
       setUsers(usersRes.data.users);
 
       if (teamsRes.data.teams.length > 0) {
-        setFormData(prev => ({ ...prev, team_id: teamsRes.data.teams[0].team_id }));
+        setFormData(prev => ({ ...prev, team_ids: [teamsRes.data.teams[0].team_id] }));
       }
     } catch (error) {
       console.error('Load data error:', error);
@@ -1293,7 +1294,13 @@ function Teams() {
     setMessage({ type: '', text: '' });
 
     try {
-      await api.post('/auth/register', formData);
+      const payload = { ...formData };
+      if (['team_member', 'team_lead', 'floor_manager'].includes(formData.role) && formData.team_ids?.length > 0) {
+        payload.team_ids = formData.team_ids;
+      } else if (['team_member', 'team_lead', 'floor_manager'].includes(formData.role) && formData.team_ids?.length === 0) {
+        payload.team_id = teams[0]?.team_id || null;
+      }
+      await api.post('/auth/register', payload);
       setMessage({ type: 'success', text: 'User created successfully!' });
       setFormData({
         name: '',
@@ -1301,7 +1308,7 @@ function Teams() {
         password: '',
         mobile_no: '',
         role: 'team_member',
-        team_id: teams[0]?.team_id || ''
+        team_ids: teams[0] ? [teams[0].team_id] : []
       });
     } catch (error) {
       setMessage({
@@ -1321,6 +1328,18 @@ function Teams() {
     } catch (err) {
       console.error('Update mobile error:', err);
       alert(err.response?.data?.message || 'Failed to update mobile');
+    }
+  };
+
+  const handleUpdateTeams = async (userId, team_ids) => {
+    try {
+      await api.put(`/auth/users/${userId}/teams`, { team_ids });
+      setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, team_ids } : u));
+      setTeamsEditModal(null);
+      loadData();
+    } catch (err) {
+      console.error('Update teams error:', err);
+      alert(err.response?.data?.message || 'Failed to update teams');
     }
   };
 
@@ -1354,8 +1373,9 @@ function Teams() {
 
   const filteredUsers = users.filter(u => {
     if (teamFilter === 'all') return true;
-    if (teamFilter === 'unassigned') return !u.team_id;
-    return u.team_id === parseInt(teamFilter);
+    const userTeamIds = u.team_ids && u.team_ids.length > 0 ? u.team_ids : (u.team_id ? [u.team_id] : []);
+    if (teamFilter === 'unassigned') return userTeamIds.length === 0;
+    return userTeamIds.includes(parseInt(teamFilter));
   });
 
   if (loading) return <div className="text-center py-12">Loading teams...</div>;
@@ -1442,11 +1462,11 @@ function Teams() {
                   onChange={e => {
                     const role = e.target.value;
                     const noTeamRequired = ['admin', 'sales', 'qc', 'dispatch', 'procurement', 'warehouse'].includes(role);
-                    let teamId = '';
-                    if (!noTeamRequired) {
-                      teamId = formData.team_id || teams[0]?.team_id || '';
-                    }
-                    setFormData(prev => ({ ...prev, role, team_id: teamId }));
+                    setFormData(prev => ({
+                      ...prev,
+                      role,
+                      team_ids: noTeamRequired ? [] : (prev.team_ids?.length ? prev.team_ids : [teams[0]?.team_id].filter(Boolean))
+                    }));
                   }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
@@ -1464,25 +1484,30 @@ function Teams() {
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Assign to Team</label>
-                <select
-                  value={formData.team_id}
-                  onChange={e => {
-                    const value = e.target.value;
-                    setFormData({ ...formData, team_id: value ? parseInt(value) : '' });
-                  }}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                    disabled={['admin', 'sales', 'qc', 'dispatch', 'procurement', 'warehouse'].includes(formData.role)}
-                >
-                  <option value="">
-                    {['admin', 'sales', 'qc', 'dispatch', 'procurement', 'warehouse'].includes(formData.role) ? 'No team required (standalone role)' : 'Select a team'}
-                  </option>
-                  {teams.map(team => (
-                    <option key={team.team_id} value={team.team_id}>
-                      {team.team_name}
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Assign to Team(s) – select multiple for QC1+QC2, etc.</label>
+                {['admin', 'sales', 'qc', 'dispatch', 'procurement', 'warehouse'].includes(formData.role) ? (
+                  <p className="text-sm text-gray-500 py-2">No team required (standalone role)</p>
+                ) : (
+                  <div className="border border-gray-300 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                    {teams.map(team => (
+                      <label key={team.team_id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={(formData.team_ids || []).includes(team.team_id)}
+                          onChange={e => {
+                            const ids = formData.team_ids || [];
+                            const newIds = e.target.checked
+                              ? [...ids, team.team_id]
+                              : ids.filter(id => id !== team.team_id);
+                            setFormData(prev => ({ ...prev, team_ids: newIds }));
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm">{team.team_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1538,7 +1563,22 @@ function Teams() {
                 <tr key={u.user_id} className="hover:bg-gray-50">
                   <td className="p-3 font-medium">{u.name}<div className="text-xs text-gray-500">{u.email}</div></td>
                   <td className="p-3"><span className="px-2 py-1 bg-gray-100 rounded text-xs">{u.role}</span></td>
-                  <td className="p-3">{u.team_name || '-'}</td>
+                  <td className="p-3">
+                    {(() => {
+                      const ids = u.team_ids && u.team_ids.length > 0 ? u.team_ids : (u.team_id ? [u.team_id] : []);
+                      const names = ids.map(tid => teams.find(t => t.team_id === tid)?.team_name).filter(Boolean);
+                      return names.length > 0 ? names.join(', ') : (u.team_name || '-');
+                    })()}
+                    {canManageUsers && ['team_member', 'team_lead', 'floor_manager'].includes(u.role) && (
+                      <button
+                        onClick={() => setTeamsEditModal({ userId: u.user_id, name: u.name, team_ids: u.team_ids || (u.team_id ? [u.team_id] : []) })}
+                        className="ml-2 text-xs text-blue-600 hover:text-blue-800"
+                        title="Edit teams"
+                      >
+                        <Pencil className="w-3.5 h-3.5 inline" />
+                      </button>
+                    )}
+                  </td>
                   <td className="p-3">
                     <span>{u.mobile_no || '-'}</span>
                     {canManageUsers && (
@@ -1608,6 +1648,42 @@ function Teams() {
               <button
                 onClick={() => handleUpdateMobile(mobileEditModal.userId, mobileEditModal.mobile_no)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Teams Edit Modal */}
+      {teamsEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold mb-1">Edit Team Access</h3>
+            <p className="text-sm text-gray-500 mb-4">Select teams for {teamsEditModal.name}. User will see tickets in all selected stages.</p>
+            <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
+              {teams.map(team => (
+                <label key={team.team_id} className="flex items-center gap-3 p-2 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={(teamsEditModal.team_ids || []).includes(team.team_id)}
+                    onChange={(e) => {
+                      const ids = teamsEditModal.team_ids || [];
+                      const newIds = e.target.checked ? [...ids, team.team_id] : ids.filter(id => id !== team.team_id);
+                      setTeamsEditModal(prev => ({ ...prev, team_ids: newIds }));
+                    }}
+                    className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="text-sm font-medium">{team.team_name}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setTeamsEditModal(null)} className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button
+                onClick={() => handleUpdateTeams(teamsEditModal.userId, teamsEditModal.team_ids || [])}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
               >
                 Save
               </button>
