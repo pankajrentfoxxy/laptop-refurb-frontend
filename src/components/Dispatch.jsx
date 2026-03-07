@@ -39,7 +39,11 @@ export default function Dispatch({ api }) {
     );
     const deliveredOrders = allOrders.filter(o => o.status === 'Delivered');
 
-    const canUpdateOrder = (status) => ['QC Passed', 'Dispatched', 'Delivered'].includes(status);
+    const canUpdateOrder = (order) => {
+        const status = order?.status;
+        const hasReadyForDispatch = Number(order?.ready_for_dispatch_count || 0) > 0;
+        return ['QC Passed', 'Dispatched', 'Delivered'].includes(status) || hasReadyForDispatch;
+    };
 
     useEffect(() => {
         if (isDispatch) loadOrders();
@@ -286,9 +290,9 @@ export default function Dispatch({ api }) {
                                         <button onClick={() => setDetailsModal(order)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View details">
                                             <Eye className="w-4 h-4" />
                                         </button>
-                                        {canUpdateOrder(order.status) && (
+                                        {canUpdateOrder(order) && (
                                             <>
-                                                {order.status === 'QC Passed' && (
+                                                {(order.status === 'QC Passed' || Number(order.ready_for_dispatch_count) > 0) && (
                                                     <button
                                                         onClick={() => setDispatchModal({ order_id: order.order_id, dispatch_date: new Date().toISOString().split('T')[0], tracker_id: '', courier_partner: '', estimated_delivery: '' })}
                                                         className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 flex items-center gap-1"
@@ -318,7 +322,7 @@ export default function Dispatch({ api }) {
                                                 )}
                                             </>
                                         )}
-                                        {!canUpdateOrder(order.status) && (
+                                        {!canUpdateOrder(order) && (
                                             <span className="text-xs text-gray-400 px-2 py-1" title="Updates available after QC Pass">View only</span>
                                         )}
                                     </div>
@@ -446,6 +450,7 @@ export default function Dispatch({ api }) {
                                                 <th className="text-left p-2">Generation</th>
                                                 <th className="text-left p-2">RAM</th>
                                                 <th className="text-left p-2">Storage / Model</th>
+                                                <th className="text-left p-2">QC Passed</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -459,6 +464,13 @@ export default function Dispatch({ api }) {
                                                     <td className="p-2">{row.generation || '-'}</td>
                                                     <td className="p-2">{row.ram || '-'}</td>
                                                     <td className="p-2">{row.storage || row.preferred_model || '-'}</td>
+                                                    <td className="p-2">
+                                                        {row.qc_passed ? (
+                                                            <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Yes</span>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">-</span>
+                                                        )}
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>

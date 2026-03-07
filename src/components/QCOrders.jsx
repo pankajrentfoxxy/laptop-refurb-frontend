@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Eye, Loader2, MessageSquare, RefreshCw, X } from 'lucide-react';
+import { Eye, Loader2, MessageSquare, RefreshCw, X, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 function LaptopDetailsCell({ items }) {
@@ -64,11 +64,23 @@ export default function QCOrders({ api }) {
     }, [isQC, loadOrders]);
 
     const handleQCPass = async (orderId) => {
-        if (!window.confirm('Mark this order as QC Passed?')) return;
+        if (!window.confirm('Mark all laptops in this order as QC Passed?')) return;
         try {
             await api.put(`/sales/orders/${orderId}/qc-pass`);
-            alert('Order moved to QC Passed and now visible in Dispatch.');
+            alert('All laptops marked QC Passed. Order visible in Dispatch.');
             loadOrders();
+        } catch (e) {
+            alert('Failed: ' + (e.response?.data?.message || e.message));
+        }
+    };
+
+    const handleQCPassItem = async (orderId, itemId, onSuccess) => {
+        if (!window.confirm('Mark this laptop as QC Passed? It will appear in Dispatch.')) return;
+        try {
+            await api.put(`/sales/orders/${orderId}/items/${itemId}/qc-pass`);
+            alert('Laptop marked QC Passed. Now visible in Dispatch.');
+            loadOrders();
+            onSuccess?.();
         } catch (e) {
             alert('Failed: ' + (e.response?.data?.message || e.message));
         }
@@ -147,9 +159,16 @@ export default function QCOrders({ api }) {
                                             <Eye className="w-4 h-4" />
                                         </button>
                                         {order.status === 'QC Pending' && (
-                                            <button onClick={() => handleQCPass(order.order_id)} className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
-                                                QC Pass
-                                            </button>
+                                            <>
+                                                <button onClick={() => setDetailsModal(order)} className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
+                                                    QC Pass
+                                                </button>
+                                                {(order.items || []).length > 1 && (
+                                                    <button onClick={() => handleQCPass(order.order_id)} className="px-3 py-1 bg-indigo-500 text-white rounded-lg text-xs font-bold hover:bg-indigo-600">
+                                                        Pass All
+                                                    </button>
+                                                )}
+                                            </>
                                         )}
                                         {order.status === 'Procurement Pending' && (
                                             <button onClick={() => setNoteModal(order)} className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 flex items-center gap-1">
@@ -194,15 +213,25 @@ export default function QCOrders({ api }) {
             )}
 
             {detailsModal && (
-                <OrderDetailsQuick order={detailsModal} onClose={() => setDetailsModal(null)} api={api} />
+                <OrderDetailsQuick order={detailsModal} onClose={() => setDetailsModal(null)} api={api} onQCPassItem={handleQCPassItem} onRefresh={loadOrders} />
             )}
         </div>
     );
 }
 
-function OrderDetailsQuick({ order, onClose, api }) {
+function OrderDetailsQuick({ order, onClose, api, onQCPassItem, onRefresh }) {
     const [items, setItems] = useState(order.items || []);
     const [loading, setLoading] = useState(!(order.items && order.items.length > 0));
+
+    const refreshItems = async () => {
+        try {
+            const { data } = await api.get(`/sales/orders/${order.order_id}`);
+            setItems(data.items || []);
+            onRefresh?.();
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
     useEffect(() => {
         if (order.items && order.items.length > 0) {
@@ -223,6 +252,8 @@ function OrderDetailsQuick({ order, onClose, api }) {
         loadItems();
     }, [order.order_id, order.items, api]);
 
+    const isQCPending = order.status === 'QC Pending';
+
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -239,18 +270,34 @@ function OrderDetailsQuick({ order, onClose, api }) {
                     ) : (
                         <div className="space-y-3">
                             <h4 className="font-bold text-gray-800">Laptop Details (Assigned by Procurement)</h4>
+                            <p className="text-xs text-gray-500 mb-2">QC Pass each laptop individually. Passed laptops appear in Dispatch.</p>
                             {items.map((item, idx) => (
-                                <div key={idx} className={`p-3 rounded-lg border ${item.machine_number ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-                                    <div className="font-medium">{item.brand} {item.preferred_model || ''}</div>
-                                    <div className="text-xs text-gray-600">{item.processor}{item.generation ? ` | ${item.generation}` : ''} | {item.ram} | {item.storage}</div>
-                                    {item.machine_number ? (
-                                        <>
-                                            <div className="text-sm text-blue-700 font-mono mt-1 font-semibold">Machine: {item.machine_number}</div>
-                                            {item.serial_number && <div className="text-xs text-gray-600 font-mono">Serial: {item.serial_number}</div>}
-                                            <span className="inline-block mt-1 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded">Scanned & Assigned</span>
-                                        </>
-                                    ) : (
-                                        <span className="inline-block mt-1 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Pending scan</span>
+                                <div key={item.item_id || idx} className={`p-3 rounded-lg border flex justify-between items-start gap-3 ${item.machine_number ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-medium">{item.brand} {item.preferred_model || ''}</div>
+                                        <div className="text-xs text-gray-600">{item.processor}{item.generation ? ` | ${item.generation}` : ''} | {item.ram} | {item.storage}</div>
+                                        {item.machine_number ? (
+                                            <>
+                                                <div className="text-sm text-blue-700 font-mono mt-1 font-semibold">Machine: {item.machine_number}</div>
+                                                {item.serial_number && <div className="text-xs text-gray-600 font-mono">Serial: {item.serial_number}</div>}
+                                                <span className="inline-block mt-1 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded">Scanned & Assigned</span>
+                                            </>
+                                        ) : (
+                                            <span className="inline-block mt-1 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Pending scan</span>
+                                        )}
+                                        {item.qc_passed && (
+                                            <span className="inline-flex items-center gap-1 mt-1 ml-1 text-xs bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded">
+                                                <CheckCircle className="w-3 h-3" /> QC Passed
+                                            </span>
+                                        )}
+                                    </div>
+                                    {isQCPending && item.machine_number && !item.qc_passed && onQCPassItem && (
+                                        <button
+                                            onClick={() => onQCPassItem(order.order_id, item.item_id, refreshItems)}
+                                            className="shrink-0 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700"
+                                        >
+                                            QC Pass
+                                        </button>
                                     )}
                                 </div>
                             ))}
