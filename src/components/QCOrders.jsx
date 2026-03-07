@@ -158,12 +158,12 @@ export default function QCOrders({ api }) {
                                         <button onClick={() => setDetailsModal(order)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
                                             <Eye className="w-4 h-4" />
                                         </button>
-                                        {((order.status === 'QC Pending') || (order.status === 'Warehouse Pending' && (order.items || []).some(i => i.machine_number))) && (
+                                        {((order.status === 'QC Pending') || (order.status === 'Warehouse Pending' && (order.items || []).some(i => i.status === 'Assigned'))) && (
                                             <>
                                                 <button onClick={() => setDetailsModal(order)} className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
                                                     QC Pass
                                                 </button>
-                                                {(order.items || []).filter(i => i.machine_number).length > 1 && (
+                                                {(order.items || []).filter(i => i.status === 'Assigned').length > 1 && (
                                                     <button onClick={() => handleQCPass(order.order_id)} className="px-3 py-1 bg-indigo-500 text-white rounded-lg text-xs font-bold hover:bg-indigo-600">
                                                         Pass All
                                                     </button>
@@ -252,7 +252,7 @@ function OrderDetailsQuick({ order, onClose, api, onQCPassItem, onRefresh }) {
         loadItems();
     }, [order.order_id, order.items, api]);
 
-    const hasAssignedItems = (items || []).some(i => i.machine_number);
+    const hasAssignedItems = (items || []).some(i => i.status === 'Assigned');
     const isQCPending = order.status === 'QC Pending' || (order.status === 'Warehouse Pending' && hasAssignedItems);
 
     return (
@@ -281,7 +281,13 @@ function OrderDetailsQuick({ order, onClose, api, onQCPassItem, onRefresh }) {
                                             <>
                                                 <div className="text-sm text-blue-700 font-mono mt-1 font-semibold">Machine: {item.machine_number}</div>
                                                 {item.serial_number && <div className="text-xs text-gray-600 font-mono">Serial: {item.serial_number}</div>}
-                                                <span className="inline-block mt-1 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded">Scanned & Assigned</span>
+                                                {item.status === 'Assigned' ? (
+                                                    <span className="inline-block mt-1 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded">Warehouse Ready</span>
+                                                ) : item.status === 'Warehouse' ? (
+                                                    <span className="inline-block mt-1 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Warehouse (Cooling)</span>
+                                                ) : (
+                                                    <span className="inline-block mt-1 text-xs bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{item.status || 'Pending'}</span>
+                                                )}
                                             </>
                                         ) : (
                                             <span className="inline-block mt-1 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Pending scan</span>
@@ -292,7 +298,7 @@ function OrderDetailsQuick({ order, onClose, api, onQCPassItem, onRefresh }) {
                                             </span>
                                         )}
                                     </div>
-                                    {isQCPending && item.machine_number && !item.qc_passed && onQCPassItem && (
+                                    {isQCPending && item.status === 'Assigned' && !item.qc_passed && onQCPassItem && (
                                         <button
                                             onClick={() => onQCPassItem(order.order_id, item.item_id, refreshItems)}
                                             className="shrink-0 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700"
