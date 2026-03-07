@@ -158,12 +158,12 @@ export default function QCOrders({ api }) {
                                         <button onClick={() => setDetailsModal(order)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
                                             <Eye className="w-4 h-4" />
                                         </button>
-                                        {order.status === 'QC Pending' && (
+                                        {((order.status === 'QC Pending') || (order.status === 'Warehouse Pending' && (order.items || []).some(i => i.machine_number))) && (
                                             <>
                                                 <button onClick={() => setDetailsModal(order)} className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
                                                     QC Pass
                                                 </button>
-                                                {(order.items || []).length > 1 && (
+                                                {(order.items || []).filter(i => i.machine_number).length > 1 && (
                                                     <button onClick={() => handleQCPass(order.order_id)} className="px-3 py-1 bg-indigo-500 text-white rounded-lg text-xs font-bold hover:bg-indigo-600">
                                                         Pass All
                                                     </button>
@@ -252,7 +252,8 @@ function OrderDetailsQuick({ order, onClose, api, onQCPassItem, onRefresh }) {
         loadItems();
     }, [order.order_id, order.items, api]);
 
-    const isQCPending = order.status === 'QC Pending';
+    const hasAssignedItems = (items || []).some(i => i.machine_number);
+    const isQCPending = order.status === 'QC Pending' || (order.status === 'Warehouse Pending' && hasAssignedItems);
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
