@@ -883,9 +883,9 @@ function CreateTicket() {
   };
 
   useEffect(() => {
-    // Fetch teams if user is floor mangager or admin
+    // Fetch teams for assignment (ordered by stage, excludes QC/Dispatch/Procurement)
     if (user && (user.role === 'floor_manager' || user.role === 'admin')) {
-      api.get('/teams').then(({ data }) => setTeams(data.teams)).catch(console.error);
+      api.get('/teams?for_assignment=1').then(({ data }) => setTeams(data.teams)).catch(console.error);
     }
   }, [user]);
 
