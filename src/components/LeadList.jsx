@@ -68,6 +68,7 @@ export default function LeadList({ api }) {
 
     const filtersRef = useRef({ statusFilter, sourceFilter, assigneeFilter, dateFrom, dateTo, search });
     filtersRef.current = { statusFilter, sourceFilter, assigneeFilter, dateFrom, dateTo, search };
+    const isFirstMount = useRef(true);
 
     const loadLeads = useCallback(async () => {
         const f = filtersRef.current;
@@ -104,8 +105,13 @@ export default function LeadList({ api }) {
     }, [api, canAssignLeads]);
 
     useEffect(() => {
-        setPage(1);
-        loadLeads();
+        if (isFirstMount.current) {
+            isFirstMount.current = false;
+            loadLeads();
+        } else {
+            setPage(1);
+            loadLeads();
+        }
     }, [statusFilter, sourceFilter, assigneeFilter, dateFrom, dateTo, search, loadLeads]);
 
     useEffect(() => {
