@@ -759,11 +759,17 @@ function TicketsList() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredTickets.map((ticket) => (
+          {filteredTickets.map((ticket) => {
+            const isFloorManager = ticket.stage_name === 'Floor Manager';
+            return (
             <div
               key={ticket.ticket_id}
               onClick={() => navigate(`/tickets/${ticket.ticket_id}`)}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-shadow relative"
+              className={`rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-md transition-shadow relative ${
+                isFloorManager
+                  ? 'bg-slate-800 border-2 border-amber-500 text-white [&_.text-gray-600]:text-slate-300 [&_.text-gray-500]:text-slate-400'
+                  : 'bg-white border border-gray-200'
+              }`}
             >
               <div className="flex items-start justify-between mb-4">
                 <div>
@@ -771,8 +777,8 @@ function TicketsList() {
                   <h3 className="font-bold text-lg">{ticket.serial_number}</h3>
                   <p className="text-sm text-gray-600">{ticket.brand} {ticket.model}</p>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(ticket.status)}`}>
-                  {ticket.status}
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${isFloorManager ? 'bg-amber-500/30 text-amber-100' : getStatusColor(ticket.status)}`}>
+                  {isFloorManager ? 'Priority' : ticket.status}
                 </span>
               </div>
               <div className="space-y-2">
@@ -797,11 +803,18 @@ function TicketsList() {
                       onChange={(e) => handleAssign(ticket.ticket_id, e.target.value)}
                     >
                       <option value="">-- Assign User --</option>
-                      {users.map(u => (
-                        <option key={u.user_id} value={u.user_id}>
-                          {u.name} ({u.team_name})
-                        </option>
-                      ))}
+                      {users
+                        .filter(u => ['team_member', 'floor_manager'].includes(u.role))
+                        .filter(u => {
+                          if (!ticket.assigned_team_id) return false;
+                          const userTeamIds = u.team_ids?.length ? u.team_ids : (u.team_id != null ? [u.team_id] : []);
+                          return userTeamIds.some(tid => tid == ticket.assigned_team_id);
+                        })
+                        .map(u => (
+                          <option key={u.user_id} value={u.user_id}>
+                            {u.name} ({u.team_name})
+                          </option>
+                        ))}
                     </select>
                   </div>
                 )}
@@ -827,7 +840,8 @@ function TicketsList() {
                 </div>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
 
@@ -2442,7 +2456,7 @@ function TicketDetails() {
   const [note, setNote] = useState('');
   const [stages, setStages] = useState([]); // State for stages
   const [workStatus, setWorkStatus] = useState('idle'); // idle, active, completed
-
+  const [users, setUsers] = useState([]);
 
   const handleWorkStatusChange = (status, shouldMove = false) => {
     setWorkStatus(status);
@@ -2479,10 +2493,31 @@ function TicketDetails() {
     }
   }, [id]);
 
+  const loadUsers = useCallback(async () => {
+    if (['floor_manager', 'admin', 'manager'].includes(user?.role)) {
+      try {
+        const { data } = await api.get('/auth/users');
+        setUsers(data.users || []);
+      } catch (e) { console.error(e); }
+    }
+  }, [user?.role]);
+
+  const handleAssign = async (userId) => {
+    if (!userId) return;
+    try {
+      await api.post(`/tickets/${id}/assign`, { user_id: userId });
+      alert('Assigned successfully');
+      loadTicketDetails();
+    } catch (e) {
+      alert(e.response?.data?.message || 'Failed to assign');
+    }
+  };
+
   useEffect(() => {
     loadTicketDetails();
     loadStages(); // Fetch stages on mount
-  }, [loadTicketDetails, loadStages]);
+    loadUsers();
+  }, [loadTicketDetails, loadStages, loadUsers]);
 
   const handleNextStage = async (checklistData = null, targetStageId = null, notes = null) => {
     const action = targetStageId ? 'jump to the selected' : 'move this ticket to the next';
@@ -2647,7 +2682,29 @@ function TicketDetails() {
               </div>
               <div>
                 <dt className="text-xs font-medium text-gray-500">Current Assignee</dt>
-                <dd className="mt-0.5 text-gray-900 text-sm">{ticket.assigned_user_name || ticket.team_name}</dd>
+                {['floor_manager', 'admin', 'manager'].includes(user?.role) ? (
+                  <select
+                    value={ticket.assigned_user_id || ''}
+                    onChange={(e) => handleAssign(e.target.value)}
+                    className="mt-0.5 text-sm border border-gray-300 rounded px-2 py-1 w-full max-w-xs"
+                  >
+                    <option value="">-- Assign User --</option>
+                    {users
+                      .filter(u => ['team_member', 'floor_manager'].includes(u.role))
+                      .filter(u => {
+                        if (!ticket.assigned_team_id) return false;
+                        const userTeamIds = u.team_ids?.length ? u.team_ids : (u.team_id != null ? [u.team_id] : []);
+                        return userTeamIds.some(tid => tid == ticket.assigned_team_id);
+                      })
+                      .map(u => (
+                        <option key={u.user_id} value={u.user_id}>
+                          {u.name} ({u.team_name})
+                        </option>
+                      ))}
+                  </select>
+                ) : (
+                  <span className="mt-0.5 block text-gray-900 text-sm">{ticket.assigned_user_name || ticket.team_name}</span>
+                )}
               </div>
               <div className="sm:col-span-2">
                 <dt className="text-xs font-medium text-gray-500">Initial Condition</dt>
