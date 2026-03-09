@@ -273,24 +273,23 @@ function OrderDetailsQuick({ order, onClose, api, onQCPassItem, onRefresh }) {
                             <h4 className="font-bold text-gray-800">Laptop Details (Assigned by Procurement)</h4>
                             <p className="text-xs text-gray-500 mb-2">QC Pass each laptop individually. Passed laptops appear in Dispatch.</p>
                             {items.map((item, idx) => (
-                                <div key={item.item_id || idx} className={`p-3 rounded-lg border flex justify-between items-start gap-3 ${item.machine_number ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                                <div key={item.item_id || idx} className={`p-3 rounded-lg border flex justify-between items-start gap-3 ${item.status === 'Assigned' ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
                                     <div className="flex-1 min-w-0">
                                         <div className="font-medium">{item.brand} {item.preferred_model || ''}</div>
                                         <div className="text-xs text-gray-600">{item.processor}{item.generation ? ` | ${item.generation}` : ''} | {item.ram} | {item.storage}</div>
-                                        {item.machine_number ? (
+                                        {item.status === 'Assigned' ? (
                                             <>
-                                                <div className="text-sm text-blue-700 font-mono mt-1 font-semibold">Machine: {item.machine_number}</div>
+                                                <div className="text-sm text-blue-700 font-mono mt-1 font-semibold">Machine: {item.machine_number || '-'}</div>
                                                 {item.serial_number && <div className="text-xs text-gray-600 font-mono">Serial: {item.serial_number}</div>}
-                                                {item.status === 'Assigned' ? (
-                                                    <span className="inline-block mt-1 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded">Warehouse Ready</span>
-                                                ) : item.status === 'Warehouse' ? (
-                                                    <span className="inline-block mt-1 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Warehouse (Cooling)</span>
-                                                ) : (
-                                                    <span className="inline-block mt-1 text-xs bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{item.status || 'Pending'}</span>
-                                                )}
+                                                <span className="inline-block mt-1 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded">Warehouse Marked Ready</span>
+                                            </>
+                                        ) : item.status === 'Warehouse' ? (
+                                            <>
+                                                <div className="text-sm text-gray-600 font-mono mt-1">Machine: {item.machine_number || '-'}</div>
+                                                <span className="inline-block mt-1 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Waiting for Warehouse</span>
                                             </>
                                         ) : (
-                                            <span className="inline-block mt-1 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Pending scan</span>
+                                            <span className="inline-block mt-1 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Pending assignment</span>
                                         )}
                                         {item.qc_passed && (
                                             <span className="inline-flex items-center gap-1 mt-1 ml-1 text-xs bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded">
