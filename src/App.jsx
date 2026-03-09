@@ -575,8 +575,8 @@ function TicketsList() {
   const loadTickets = useCallback(async () => {
     setLoading(true);
     try {
-      // Use general search endpoint which handles roles
-      let url = `/tickets?search=${search}`;
+      // Use general search endpoint which handles roles; view=completed includes tickets user moved
+      let url = `/tickets?search=${search}&view=${viewStatus}`;
       if (stageFilter) url += `&stage_id=${stageFilter}`;
 
       const { data } = await api.get(url);
@@ -586,7 +586,7 @@ function TicketsList() {
     } finally {
       setLoading(false);
     }
-  }, [search, stageFilter]);
+  }, [search, stageFilter, viewStatus]);
 
   useEffect(() => {
     loadStages();
@@ -641,18 +641,12 @@ function TicketsList() {
   };
 
   const filteredTickets = tickets.filter(t => {
-    // 1. Status Filter
-    if (viewStatus === 'completed') {
-      if (t.status !== 'completed') return false;
-    } else {
-      if (t.status === 'completed') return false;
-    }
-
-    // 2. Search Filter
+    // Backend returns correct set per view; only apply search filter client-side
     const matchesSearch =
       t.serial_number?.toLowerCase().includes(search.toLowerCase()) ||
       t.brand?.toLowerCase().includes(search.toLowerCase()) ||
-      t.model?.toLowerCase().includes(search.toLowerCase());
+      t.model?.toLowerCase().includes(search.toLowerCase()) ||
+      (t.ttspl_id && t.ttspl_id.toLowerCase().includes(search.toLowerCase()));
 
     return matchesSearch;
   });
@@ -773,6 +767,7 @@ function TicketsList() {
             >
               <div className="flex items-start justify-between mb-4">
                 <div>
+                  <p className="text-xs text-gray-500 mb-0.5">#{ticket.ticket_id}{ticket.ttspl_id ? ` • ${ticket.ttspl_id}` : ''}</p>
                   <h3 className="font-bold text-lg">{ticket.serial_number}</h3>
                   <p className="text-sm text-gray-600">{ticket.brand} {ticket.model}</p>
                 </div>
@@ -853,6 +848,7 @@ function CreateTicket() {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     serial_number: '',
+    ttspl_id: '',
     brand: '',
     model: '',
     initial_condition: '',
@@ -1063,6 +1059,16 @@ function CreateTicket() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">TTSPL ID</label>
+              <input
+                type="text"
+                value={formData.ttspl_id}
+                onChange={(e) => setFormData({ ...formData, ttspl_id: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="TTSPL-001"
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Serial Number *</label>
               <input
@@ -2519,20 +2525,24 @@ function TicketDetails() {
   if (!ticket) return <div className="text-center py-12">Ticket not found</div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {ticket && <WorkTimer ticketId={ticket.ticket_id} serialNumber={ticket.serial_number} machineNumber={ticket.machine_number} assignedUserId={ticket.assigned_user_id} onStatusChange={handleWorkStatusChange} />}
       <CostSummary ticket={ticket} />
-      {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header - compact */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-3xl font-bold">{ticket.serial_number}</h1>
-              <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">
+            {ticket.ttspl_id && <div className="text-xs font-medium text-gray-500 mb-0.5">TTSPL ID: {ticket.ttspl_id}</div>}
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-xs font-medium text-gray-500">Ticket #{ticket.ticket_id}</span>
+            </div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <h1 className="text-xl font-bold">{ticket.serial_number}</h1>
+              <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
                 {ticket.status}
               </span>
             </div>
-            <p className="text-gray-600">{ticket.brand} {ticket.model} • Created {new Date(ticket.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
+            <p className="text-sm text-gray-600">{ticket.brand} {ticket.model} • Created {new Date(ticket.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
           </div>
           <div className="flex flex-col items-end gap-3">
             {/* Floor Manager / Admin / Manager Jump Controls */}
@@ -2577,18 +2587,18 @@ function TicketDetails() {
         </div>
 
         {/* Progress Bar */}
-        <div className="mt-8">
+        <div className="mt-4">
           {(() => {
             const totalStages = stages.length || 13;
             return (
               <>
-                <div className="flex items-center justify-between text-sm font-medium text-gray-600 mb-2">
+                <div className="flex items-center justify-between text-xs font-medium text-gray-600 mb-1">
                   <span>Stage: {ticket.stage_name}</span>
                   <span>Step {ticket.stage_order} of {totalStages}</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
-                    className="bg-blue-600 h-3 rounded-full transition-all duration-500"
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-500"
                     style={{ width: `${(ticket.stage_order / totalStages) * 100}%` }}
                   ></div>
                 </div>
@@ -2598,43 +2608,43 @@ function TicketDetails() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Main Info */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-bold mb-4">Ticket Information</h3>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <h3 className="text-sm font-bold mb-3">Ticket Information</h3>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2 text-sm">
               <div>
-                <dt className="text-sm font-medium text-gray-500">Brand</dt>
-                <dd className="mt-1 text-gray-900">{ticket.brand}</dd>
+                <dt className="text-xs font-medium text-gray-500">Brand</dt>
+                <dd className="mt-0.5 text-gray-900 text-sm">{ticket.brand}</dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Model</dt>
-                <dd className="mt-1 text-gray-900">{ticket.model}</dd>
+                <dt className="text-xs font-medium text-gray-500">Model</dt>
+                <dd className="mt-0.5 text-gray-900 text-sm">{ticket.model}</dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Priority</dt>
-                <dd className="mt-1 text-gray-900 capitalize">{ticket.priority}</dd>
+                <dt className="text-xs font-medium text-gray-500">Priority</dt>
+                <dd className="mt-0.5 text-gray-900 text-sm capitalize">{ticket.priority}</dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Processor</dt>
-                <dd className="mt-1 text-gray-900">{ticket.processor || '-'}</dd>
+                <dt className="text-xs font-medium text-gray-500">Processor</dt>
+                <dd className="mt-0.5 text-gray-900 text-sm">{ticket.processor || '-'}</dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">RAM</dt>
-                <dd className="mt-1 text-gray-900">{ticket.ram || '-'}</dd>
+                <dt className="text-xs font-medium text-gray-500">RAM</dt>
+                <dd className="mt-0.5 text-gray-900 text-sm">{ticket.ram || '-'}</dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Storage</dt>
-                <dd className="mt-1 text-gray-900">{ticket.storage || '-'}</dd>
+                <dt className="text-xs font-medium text-gray-500">Storage</dt>
+                <dd className="mt-0.5 text-gray-900 text-sm">{ticket.storage || '-'}</dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Current Assignee</dt>
-                <dd className="mt-1 text-gray-900">{ticket.assigned_user_name || ticket.team_name}</dd>
+                <dt className="text-xs font-medium text-gray-500">Current Assignee</dt>
+                <dd className="mt-0.5 text-gray-900 text-sm">{ticket.assigned_user_name || ticket.team_name}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-sm font-medium text-gray-500">Initial Condition</dt>
-                <dd className="mt-1 text-gray-900">{ticket.initial_condition}</dd>
+                <dt className="text-xs font-medium text-gray-500">Initial Condition</dt>
+                <dd className="mt-0.5 text-gray-900 text-sm">{ticket.initial_condition}</dd>
               </div>
             </dl>
           </div>
