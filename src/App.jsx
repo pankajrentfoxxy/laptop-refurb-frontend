@@ -767,7 +767,7 @@ function TicketsList() {
             >
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">#{ticket.ticket_id}{ticket.ttspl_id ? ` • ${ticket.ttspl_id}` : ''}</p>
+                  <p className="text-xs text-gray-500 mb-0.5">#{ticket.ticket_id}{ticket.ttspl_id ? ` • ${ticket.ttspl_id}` : ''}{ticket.machine_number ? ` • ${ticket.machine_number}` : ''}</p>
                   <h3 className="font-bold text-lg">{ticket.serial_number}</h3>
                   <p className="text-sm text-gray-600">{ticket.brand} {ticket.model}</p>
                 </div>
@@ -2533,6 +2533,7 @@ function TicketDetails() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             {ticket.ttspl_id && <div className="text-xs font-medium text-gray-500 mb-0.5">TTSPL ID: {ticket.ttspl_id}</div>}
+            {ticket.machine_number && <div className="text-xs font-medium text-gray-500 mb-0.5">Machine No: {ticket.machine_number}</div>}
             <div className="flex items-center gap-2 mb-0.5">
               <span className="text-xs font-medium text-gray-500">Ticket #{ticket.ticket_id}</span>
             </div>
@@ -2614,6 +2615,12 @@ function TicketDetails() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h3 className="text-sm font-bold mb-3">Ticket Information</h3>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2 text-sm">
+              {ticket.machine_number && (
+                <div>
+                  <dt className="text-xs font-medium text-gray-500">Machine No</dt>
+                  <dd className="mt-0.5 text-gray-900 text-sm font-mono">{ticket.machine_number}</dd>
+                </div>
+              )}
               <div>
                 <dt className="text-xs font-medium text-gray-500">Brand</dt>
                 <dd className="mt-0.5 text-gray-900 text-sm">{ticket.brand}</dd>
@@ -2651,14 +2658,22 @@ function TicketDetails() {
 
 
           {/* Diagnosis Form (Visible in Diagnosis, Assembly, Procurement, Dismantle, Chip Level Repair) */}
+          {/* For Diagnosis stage: Only clickable after team member scans machine to START work */}
           {(['Diagnosis', 'Assembly & Software', 'Repair', 'Procurement', 'Dismantle', 'Chip Level Repair', 'Final Testing'].includes(ticket.stage_name)) && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <DiagnosisForm
-                api={api}
-                ticket={ticket}
-                onComplete={loadTicketDetails}
-                readOnly={ticket.stage_name !== 'Diagnosis'}
-              />
+              {ticket.stage_name === 'Diagnosis' && user?.role === 'team_member' && workStatus !== 'active' ? (
+                <div className="text-center py-8 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-amber-800 font-medium">Scan machine ({ticket.machine_number || ticket.ttspl_id || ticket.serial_number}) to START working.</p>
+                  <p className="text-sm text-amber-700 mt-1">Laptop Diagnosis will become available after you start work.</p>
+                </div>
+              ) : (
+                <DiagnosisForm
+                  api={api}
+                  ticket={ticket}
+                  onComplete={loadTicketDetails}
+                  readOnly={ticket.stage_name !== 'Diagnosis'}
+                />
+              )}
             </div>
           )}
 

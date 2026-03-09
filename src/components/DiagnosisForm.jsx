@@ -242,6 +242,8 @@ export default function DiagnosisForm({ api, ticket, onClose, onComplete, readOn
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [showRoutingModal, setShowRoutingModal] = useState(false);
+    const [routingStep, setRoutingStep] = useState(null); // 'chip_level' | 'body_paint'
 
     const loadData = React.useCallback(async () => {
         setLoading(true);
@@ -301,8 +303,12 @@ export default function DiagnosisForm({ api, ticket, onClose, onComplete, readOn
         } catch (e) { console.error(e); } finally { setSaving(false); }
     };
 
-    const handleSubmit = async () => {
-        if (!window.confirm('Submit Diagnosis? This will route to Procurement if parts are selected.')) return;
+    const hasFailures = () => {
+        const allFields = Object.values(sections).flatMap(s => (s.fields || []));
+        return allFields.some(f => data[f] === false);
+    };
+
+    const doSubmit = async (chipLevelRepair = false, bodyPaintRequired = false) => {
         setSubmitting(true);
         try {
             const payload = {
@@ -312,17 +318,33 @@ export default function DiagnosisForm({ api, ticket, onClose, onComplete, readOn
                     part_id: p.part_id,
                     part_name: p.part_name,
                     part_type: p.part_type
-                }))
+                })),
+                chip_level_repair_required: chipLevelRepair,
+                body_paint_required: bodyPaintRequired
             };
 
             await api.post(`/diagnosis/ticket/${ticket.ticket_id}/submit`, payload);
             alert('Diagnosis Submitted!');
+            setShowRoutingModal(false);
+            setRoutingStep(null);
             if (onComplete) onComplete();
         } catch (e) {
             alert('Error: ' + (e.response?.data?.message || e.message));
         } finally {
             setSubmitting(false);
         }
+    };
+
+    const handleSubmit = async () => {
+        const failures = hasFailures();
+        if (failures) {
+            if (!window.confirm('Issues found. Ticket will move to Floor Manager for review. Continue?')) return;
+            await doSubmit(false, false);
+            return;
+        }
+        // No issues: ask routing questions
+        setRoutingStep('chip_level');
+        setShowRoutingModal(true);
     };
 
     // Procurement Assign
@@ -438,6 +460,61 @@ export default function DiagnosisForm({ api, ticket, onClose, onComplete, readOn
                 <div className="flex gap-3 sticky bottom-0 bg-white/90 backdrop-blur-sm p-4 border-t z-10">
                     <button onClick={handleSave} disabled={saving} className="flex-1 py-3 border rounded-xl font-bold">Save Draft</button>
                     <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Submit</button>
+                </div>
+            )}
+
+            {/* Routing modal: Chip level / Body paint (when no issues found) */}
+            {showRoutingModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl">
+                        {routingStep === 'chip_level' && (
+                            <>
+                                <h3 className="text-lg font-bold mb-4">Any chip level repair required?</h3>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => doSubmit(true, false)}
+                                        disabled={submitting}
+                                        className="flex-1 py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 disabled:opacity-50"
+                                    >
+                                        Yes
+                                    </button>
+                                    <button
+                                        onClick={() => setRoutingStep('body_paint')}
+                                        className="flex-1 py-3 border border-gray-300 rounded-xl font-bold hover:bg-gray-50"
+                                    >
+                                        No
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                        {routingStep === 'body_paint' && (
+                            <>
+                                <h3 className="text-lg font-bold mb-4">Is Body Paint Required?</h3>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => doSubmit(false, true)}
+                                        disabled={submitting}
+                                        className="flex-1 py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 disabled:opacity-50"
+                                    >
+                                        Yes
+                                    </button>
+                                    <button
+                                        onClick={() => doSubmit(false, false)}
+                                        disabled={submitting}
+                                        className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50"
+                                    >
+                                        No
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                        <button
+                            onClick={() => { setShowRoutingModal(false); setRoutingStep(null); }}
+                            className="mt-4 w-full py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                        >
+                            Cancel
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
