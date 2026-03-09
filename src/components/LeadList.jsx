@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Upload, UserPlus, RefreshCw, AlertTriangle, ChevronDown, ChevronRight, ChevronUp, Plus, MessageSquarePlus, Save, Pencil } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const STATUS_OPTIONS = ['Pending', 'Cold', 'Warm', 'Hot', 'Gone', 'Hold', 'Rejected', 'Call Back', 'Deal'];
@@ -11,6 +11,7 @@ const todayDate = () => new Date().toISOString().slice(0, 10);
 export default function LeadList({ api }) {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [leads, setLeads] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState([]);
@@ -27,7 +28,17 @@ export default function LeadList({ api }) {
     const [assigningUnassigned, setAssigningUnassigned] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [message, setMessage] = useState('');
-    const [page, setPage] = useState(1);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const setPage = useCallback((pOrUpdater) => {
+        const next = typeof pOrUpdater === 'function' ? pOrUpdater(page) : pOrUpdater;
+        const safe = Math.max(1, next);
+        setSearchParams(prev => {
+            const nextParams = new URLSearchParams(prev);
+            if (safe === 1) nextParams.delete('page');
+            else nextParams.set('page', String(safe));
+            return nextParams;
+        });
+    }, [page, setSearchParams]);
     const [manualLead, setManualLead] = useState({
         date: todayDate(),
         name: '',
@@ -674,7 +685,7 @@ export default function LeadList({ api }) {
                                     </td>
                                     <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                                         <button
-                                            onClick={() => navigate(`/leads/${lead.leadId}`)}
+                                            onClick={() => navigate(`/leads/${lead.leadId}?fromPage=${page}`)}
                                             className="text-indigo-600 hover:text-indigo-700 font-medium text-[10px]"
                                         >
                                             View

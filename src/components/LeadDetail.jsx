@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, Calendar, RefreshCw, AlertTriangle, ChevronDown, ChevronRight, MessageSquarePlus, X, Trash2 } from 'lucide-react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { CheckCircle, Calendar, RefreshCw, AlertTriangle, ChevronDown, ChevronRight, MessageSquarePlus, X, Trash2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const STATUS_OPTIONS = ['Pending', 'Cold', 'Warm', 'Hot', 'Gone', 'Hold', 'Rejected', 'Call Back', 'Deal'];
@@ -70,6 +70,8 @@ const mapResearchToForm = (research) => {
 export default function LeadDetail({ api }) {
     const { user } = useAuth();
     const { id } = useParams();
+    const [searchParams] = useSearchParams();
+    const fromPage = searchParams.get('fromPage');
     const [lead, setLead] = useState(null);
     const [loading, setLoading] = useState(true);
     const [status, setStatus] = useState('Cold');
@@ -299,8 +301,19 @@ export default function LeadDetail({ api }) {
     if (loading) return <div className="text-center py-12">Loading lead...</div>;
     if (!lead) return <div className="text-center py-12">Lead not found</div>;
 
+    const backToLeadsUrl = fromPage && parseInt(fromPage, 10) > 1 ? `/leads?page=${fromPage}` : '/leads';
+
     return (
         <div className="space-y-6">
+            <div className="mb-4">
+                <button
+                    onClick={() => navigate(backToLeadsUrl)}
+                    className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium text-sm"
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                    {fromPage && parseInt(fromPage, 10) > 1 ? `Back to Leads (page ${fromPage})` : 'Back to Leads'}
+                </button>
+            </div>
             <div className="bg-white border rounded-xl p-6">
                 <div className="flex items-center justify-between">
                     <div>
