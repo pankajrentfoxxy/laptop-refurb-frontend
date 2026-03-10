@@ -553,6 +553,7 @@ function TicketsList() {
   const [users, setUsers] = useState([]);
   const [viewStatus, setViewStatus] = useState('in_progress'); // 'in_progress' or 'completed'
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [ticketPriorityAssign, setTicketPriorityAssign] = useState({}); // { ticketId: { user_id, stage_id } }
   const navigate = useNavigate();
 
   const loadStages = useCallback(async () => {
@@ -602,10 +603,23 @@ function TicketsList() {
 
   const handleAssign = async (ticketId, userId) => {
     try {
-      // If userId is empty, unassign? No, assuming valid user.
       if (!userId) return;
       await api.post(`/tickets/${ticketId}/assign`, { user_id: userId });
       alert('Assigned successfully');
+      loadTickets();
+    } catch (error) {
+      console.error(error);
+      alert('Failed to assign');
+    }
+  };
+
+  const handlePriorityAssign = async (ticketId) => {
+    const sel = ticketPriorityAssign[ticketId];
+    if (!sel?.user_id || !sel?.stage_id) return;
+    try {
+      await api.post(`/tickets/${ticketId}/assign`, { user_id: sel.user_id, target_stage_id: parseInt(sel.stage_id, 10) });
+      alert('Assigned and moved successfully');
+      setTicketPriorityAssign(prev => ({ ...prev, [ticketId]: {} }));
       loadTickets();
     } catch (error) {
       console.error(error);
@@ -760,13 +774,13 @@ function TicketsList() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredTickets.map((ticket) => {
-            const isFloorManager = ticket.stage_name === 'Floor Manager';
+            const isPriority = ticket.stage_name === 'Floor Manager' && ['high', 'urgent'].includes(ticket.priority);
             return (
             <div
               key={ticket.ticket_id}
               onClick={() => navigate(`/tickets/${ticket.ticket_id}`)}
               className={`rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-md transition-shadow relative ${
-                isFloorManager
+                isPriority
                   ? 'bg-slate-800 border-2 border-amber-500 text-white [&_.text-gray-600]:text-slate-300 [&_.text-gray-500]:text-slate-400'
                   : 'bg-white border border-gray-200'
               }`}
@@ -777,8 +791,8 @@ function TicketsList() {
                   <h3 className="font-bold text-lg">{ticket.serial_number}</h3>
                   <p className="text-sm text-gray-600">{ticket.brand} {ticket.model}</p>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${isFloorManager ? 'bg-amber-500/30 text-amber-100' : getStatusColor(ticket.status)}`}>
-                  {isFloorManager ? 'Priority' : ticket.status}
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${isPriority ? 'bg-amber-500/30 text-amber-100' : getStatusColor(ticket.status)}`}>
+                  {isPriority ? 'Priority' : ticket.status}
                 </span>
               </div>
               <div className="space-y-2">
@@ -796,26 +810,64 @@ function TicketsList() {
               <div className="mt-4 pt-4 border-t flex flex-col gap-2">
                 {/* Manager Assignment */}
                 {['floor_manager', 'admin', 'manager'].includes(user?.role) && (
-                  <div className="flex items-center gap-2 mb-2" onClick={e => e.stopPropagation()}>
-                    <select
-                      className="text-xs border border-gray-300 rounded p-1 w-full"
-                      value={ticket.assigned_user_id || ''}
-                      onChange={(e) => handleAssign(ticket.ticket_id, e.target.value)}
-                    >
-                      <option value="">-- Assign User --</option>
-                      {users
-                        .filter(u => ['team_member', 'floor_manager'].includes(u.role))
-                        .filter(u => {
-                          if (!ticket.assigned_team_id) return false;
-                          const userTeamIds = u.team_ids?.length ? u.team_ids : (u.team_id != null ? [u.team_id] : []);
-                          return userTeamIds.some(tid => tid == ticket.assigned_team_id);
-                        })
-                        .map(u => (
-                          <option key={u.user_id} value={u.user_id}>
-                            {u.name} ({u.team_name})
-                          </option>
-                        ))}
-                    </select>
+                  <div className="flex flex-col gap-2 mb-2" onClick={e => e.stopPropagation()}>
+                    {isPriority ? (
+                      <>
+                        <div className="flex gap-2">
+                          <select
+                            className="text-xs border border-gray-300 rounded p-1 flex-1"
+                            value={ticketPriorityAssign[ticket.ticket_id]?.user_id ?? ''}
+                            onChange={(e) => setTicketPriorityAssign(prev => ({ ...prev, [ticket.ticket_id]: { ...prev[ticket.ticket_id], user_id: e.target.value } }))}
+                          >
+                            <option value="">-- Name --</option>
+                            {users
+                              .filter(u => ['team_member', 'floor_manager'].includes(u.role))
+                              .map(u => (
+                                <option key={u.user_id} value={u.user_id}>
+                                  {u.name} ({u.team_name || '-'})
+                                </option>
+                              ))}
+                          </select>
+                          <select
+                            className="text-xs border border-gray-300 rounded p-1 flex-1"
+                            value={ticketPriorityAssign[ticket.ticket_id]?.stage_id ?? ''}
+                            onChange={(e) => setTicketPriorityAssign(prev => ({ ...prev, [ticket.ticket_id]: { ...prev[ticket.ticket_id], stage_id: e.target.value } }))}
+                          >
+                            <option value="">-- Stage --</option>
+                            {stages.map(s => (
+                              <option key={s.stage_id} value={s.stage_id}>{s.stage_order}. {s.stage_name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handlePriorityAssign(ticket.ticket_id); }}
+                          disabled={!ticketPriorityAssign[ticket.ticket_id]?.user_id || !ticketPriorityAssign[ticket.ticket_id]?.stage_id}
+                          className="text-xs bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded disabled:opacity-50"
+                        >
+                          Assign & Move
+                        </button>
+                      </>
+                    ) : (
+                      <select
+                        className="text-xs border border-gray-300 rounded p-1 w-full"
+                        value={ticket.assigned_user_id || ''}
+                        onChange={(e) => handleAssign(ticket.ticket_id, e.target.value)}
+                      >
+                        <option value="">-- Assign User --</option>
+                        {users
+                          .filter(u => ['team_member', 'floor_manager'].includes(u.role))
+                          .filter(u => {
+                            if (!ticket.assigned_team_id) return false;
+                            const userTeamIds = u.team_ids?.length ? u.team_ids : (u.team_id != null ? [u.team_id] : []);
+                            return userTeamIds.some(tid => tid == ticket.assigned_team_id);
+                          })
+                          .map(u => (
+                            <option key={u.user_id} value={u.user_id}>
+                              {u.name} ({u.team_name})
+                            </option>
+                          ))}
+                      </select>
+                    )}
                   </div>
                 )}
 
