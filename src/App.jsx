@@ -813,9 +813,9 @@ function TicketsList() {
                   <div className="flex flex-col gap-2 mb-2" onClick={e => e.stopPropagation()}>
                     {isPriority ? (
                       <>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 min-w-0">
                           <select
-                            className="text-xs border border-gray-300 rounded p-1 flex-1"
+                            className="text-xs bg-slate-700 border border-amber-500/50 text-slate-100 rounded p-1.5 flex-1 min-w-0 focus:ring-1 focus:ring-amber-500/50 [&>option]:bg-slate-800 [&>option]:text-slate-100"
                             value={ticketPriorityAssign[ticket.ticket_id]?.user_id ?? ''}
                             onChange={(e) => setTicketPriorityAssign(prev => ({ ...prev, [ticket.ticket_id]: { ...prev[ticket.ticket_id], user_id: e.target.value } }))}
                           >
@@ -823,13 +823,13 @@ function TicketsList() {
                             {users
                               .filter(u => ['team_member', 'floor_manager'].includes(u.role))
                               .map(u => (
-                                <option key={u.user_id} value={u.user_id}>
+                                <option key={u.user_id} value={u.user_id} title={`${u.name} (${u.team_name || '-'})`}>
                                   {u.name} ({u.team_name || '-'})
                                 </option>
                               ))}
                           </select>
                           <select
-                            className="text-xs border border-gray-300 rounded p-1 flex-1"
+                            className="text-xs bg-slate-700 border border-amber-500/50 text-slate-100 rounded p-1.5 flex-1 min-w-0 focus:ring-1 focus:ring-amber-500/50 [&>option]:bg-slate-800 [&>option]:text-slate-100"
                             value={ticketPriorityAssign[ticket.ticket_id]?.stage_id ?? ''}
                             onChange={(e) => setTicketPriorityAssign(prev => ({ ...prev, [ticket.ticket_id]: { ...prev[ticket.ticket_id], stage_id: e.target.value } }))}
                           >
@@ -842,7 +842,7 @@ function TicketsList() {
                         <button
                           onClick={(e) => { e.stopPropagation(); handlePriorityAssign(ticket.ticket_id); }}
                           disabled={!ticketPriorityAssign[ticket.ticket_id]?.user_id || !ticketPriorityAssign[ticket.ticket_id]?.stage_id}
-                          className="text-xs bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded disabled:opacity-50"
+                          className="text-xs bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded disabled:opacity-50 w-full"
                         >
                           Assign & Move
                         </button>
@@ -857,6 +857,7 @@ function TicketsList() {
                         {users
                           .filter(u => ['team_member', 'floor_manager'].includes(u.role))
                           .filter(u => {
+                            if (ticket.stage_name === 'Floor Manager') return true;
                             if (!ticket.assigned_team_id) return false;
                             const userTeamIds = u.team_ids?.length ? u.team_ids : (u.team_id != null ? [u.team_id] : []);
                             return userTeamIds.some(tid => tid == ticket.assigned_team_id);
