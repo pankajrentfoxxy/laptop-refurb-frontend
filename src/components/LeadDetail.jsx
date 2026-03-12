@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Calendar, RefreshCw, AlertTriangle, ChevronDown, ChevronRight, MessageSquarePlus, X, Trash2, ArrowLeft } from 'lucide-react';
+import { CheckCircle, Calendar, RefreshCw, AlertTriangle, ChevronDown, ChevronRight, MessageSquarePlus, X, Trash2, ArrowLeft, Pencil, Save } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const STATUS_OPTIONS = ['Pending', 'Cold', 'Warm', 'Hot', 'Gone', 'Hold', 'Rejected', 'Call Back', 'Deal'];
@@ -97,6 +97,8 @@ export default function LeadDetail({ api }) {
     const [savingAddress, setSavingAddress] = useState(false);
     const [remarksOpen, setRemarksOpen] = useState(false);
     const [remarkText, setRemarkText] = useState('');
+    const [editingPersonalRemarks, setEditingPersonalRemarks] = useState(false);
+    const [savingPersonalRemarks, setSavingPersonalRemarks] = useState(false);
     const [savingRemark, setSavingRemark] = useState(false);
     const [deletingRemarkId, setDeletingRemarkId] = useState(null);
     const [expandedSections, setExpandedSections] = useState({ status: true, followup: false, addresses: false, personalRemarks: true, remarks: true });
@@ -214,6 +216,25 @@ export default function LeadDetail({ api }) {
 
     const handleGoToSales = () => {
         navigate(`/sales?leadId=${id}`);
+    };
+
+    const handleSavePersonalRemarks = async () => {
+        setSavingPersonalRemarks(true);
+        try {
+            const payload = { personal_remarks: basicForm.personal_remarks ?? '' };
+            const { data } = await api.put(`/leads/${id}/basic`, payload);
+            setEditingPersonalRemarks(false);
+            if (data?.lead) {
+                const pr = data.lead.personalRemarks ?? data.lead.personal_remarks ?? '';
+                setLead(prev => ({ ...prev, personalRemarks: pr, personal_remarks: pr }));
+                setBasicForm(prev => ({ ...prev, personal_remarks: pr }));
+            }
+            await loadLead();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to update personal remarks');
+        } finally {
+            setSavingPersonalRemarks(false);
+        }
     };
 
     const handleSaveBasic = async () => {
@@ -387,16 +408,6 @@ export default function LeadDetail({ api }) {
                             />
                         </div>
                         <div className="md:col-span-2">
-                            <label className="text-xs text-gray-500">Personal Remarks</label>
-                            <textarea
-                                value={basicForm.personal_remarks}
-                                onChange={(e) => setBasicForm(prev => ({ ...prev, personal_remarks: e.target.value }))}
-                                placeholder="Sales notes about this lead..."
-                                rows={2}
-                                className="w-full border rounded-lg px-3 py-2"
-                            />
-                        </div>
-                        <div className="md:col-span-2">
                             <button
                                 onClick={handleSaveBasic}
                                 disabled={savingBasic}
@@ -554,7 +565,28 @@ export default function LeadDetail({ api }) {
                     </button>
                     {expandedSections.personalRemarks && (
                         <div className="px-4 pb-4 border-t">
-                            <div className="text-sm text-gray-700 whitespace-pre-wrap mt-3">{(lead.personalRemarks ?? lead.personal_remarks ?? '').trim() || '-'}</div>
+                            {editingPersonalRemarks ? (
+                                <div className="mt-3 space-y-2">
+                                    <textarea
+                                        value={basicForm.personal_remarks ?? ''}
+                                        onChange={(e) => setBasicForm(prev => ({ ...prev, personal_remarks: e.target.value }))}
+                                        placeholder="Sales notes about this lead..."
+                                        rows={3}
+                                        className="w-full border rounded-lg px-3 py-2 text-sm"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={handleSavePersonalRemarks} disabled={savingPersonalRemarks} className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">
+                                            <Save className="w-3.5 h-3.5" /> {savingPersonalRemarks ? 'Saving...' : 'Save'}
+                                        </button>
+                                        <button onClick={() => setEditingPersonalRemarks(false)} disabled={savingPersonalRemarks} className="px-3 py-1.5 border rounded-lg text-sm">Cancel</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="mt-3 flex items-start justify-between gap-2">
+                                    <div className="text-sm text-gray-700 whitespace-pre-wrap flex-1">{(lead.personalRemarks ?? lead.personal_remarks ?? '').trim() || '-'}</div>
+                                    <button onClick={() => setEditingPersonalRemarks(true)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit personal remarks"><Pencil className="w-4 h-4" /></button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
