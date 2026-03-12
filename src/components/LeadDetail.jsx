@@ -424,10 +424,6 @@ export default function LeadDetail({ api }) {
                         <div className="text-gray-500">Assigned To</div>
                         <div className="font-semibold">{lead.assignedUser?.name || '-'}</div>
                     </div>
-                    <div className="md:col-span-2">
-                        <div className="text-gray-500">Personal Remarks</div>
-                        <div className="font-semibold text-gray-700 whitespace-pre-wrap">{(lead.personalRemarks ?? lead.personal_remarks ?? '').trim() || '-'}</div>
-                    </div>
                 </div>
                 {lead.isDuplicate && (
                     <div className="mt-3 text-sm text-amber-700 flex items-center gap-2">
@@ -543,6 +539,22 @@ export default function LeadDetail({ api }) {
                                 ))}
                                 {(!lead.addresses || lead.addresses.length === 0) && <div className="text-sm text-gray-500">No addresses yet.</div>}
                             </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Personal Remarks - dedicated section */}
+                <div className="bg-white border rounded-xl overflow-hidden">
+                    <button
+                        onClick={() => toggleSection('personalRemarks')}
+                        className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors"
+                    >
+                        <span className="font-semibold">Personal Remarks</span>
+                        {expandedSections.personalRemarks ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+                    </button>
+                    {expandedSections.personalRemarks && (
+                        <div className="px-4 pb-4 border-t">
+                            <div className="text-sm text-gray-700 whitespace-pre-wrap mt-3">{(lead.personalRemarks ?? lead.personal_remarks ?? '').trim() || '-'}</div>
                         </div>
                     )}
                 </div>

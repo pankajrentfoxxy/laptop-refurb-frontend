@@ -647,11 +647,6 @@ export default function LeadList({ api }) {
                                     <td className="px-2 py-2 min-w-0" onClick={(e) => e.stopPropagation()}>
                                         <div className="font-medium text-slate-800 truncate" title={lead.name}>{lead.name}</div>
                                         <div className="text-[10px] text-slate-500 truncate" title={lead.email || '-'}>{lead.email || '-'}</div>
-                                        {(lead.personalRemarks || lead.personal_remarks) && (
-                                            <div className="text-[9px] text-slate-400 truncate italic" title={lead.personalRemarks || lead.personal_remarks}>
-                                                {lead.personalRemarks || lead.personal_remarks}
-                                            </div>
-                                        )}
                                         <div className="text-[10px] text-slate-500 truncate" title={lead.phone || '-'}>{lead.phone || '-'}</div>
                                         {lead.isDuplicate && <span className="text-[10px] text-amber-600">Dup</span>}
                                     </td>
