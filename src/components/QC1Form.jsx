@@ -96,6 +96,7 @@ export default function QC1Form({ ticket, qcStage = 'QC1', onComplete }) {
     });
     const [processing, setProcessing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [bitlockerModal, setBitlockerModal] = useState(false);
 
     const loadQCData = useCallback(async () => {
         try {
@@ -188,12 +189,12 @@ export default function QC1Form({ ticket, qcStage = 'QC1', onComplete }) {
             return alert('Please add part replacement details or uncheck "Any Part Replaced"');
         }
 
-        const confirmed = window.confirm(
-            `Are you sure you want to submit ${qcStage}?\n\nGrade: ${grading.final_grade}\n\nThis action cannot be undone.`
-        );
+        // Show Bitlocker reminder before submitting
+        setBitlockerModal(true);
+    };
 
-        if (!confirmed) return;
-
+    const handleBitlockerDone = async () => {
+        setBitlockerModal(false);
         setProcessing(true);
         try {
             const res = await api.post(`/tickets/${ticket.ticket_id}/qc/submit`, {
@@ -602,6 +603,37 @@ export default function QC1Form({ ticket, qcStage = 'QC1', onComplete }) {
                     {processing ? 'Submitting...' : `Submit ${qcStage}`}
                 </button>
             </div>
+
+            {/* Bitlocker Reminder Modal */}
+            {bitlockerModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                        <div className="text-center mb-6">
+                            <div className="mx-auto w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mb-4">
+                                <span className="text-2xl">🔒</span>
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">Please remove Bitlocker</h3>
+                            <p className="text-gray-600 text-sm">
+                                Ensure Bitlocker has been removed from the laptop before marking QC Pass. The ticket will move to the next stage after you confirm.
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setBitlockerModal(false)}
+                                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleBitlockerDone}
+                                className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
