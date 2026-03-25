@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Truck, CheckCircle, Clock, AlertCircle, ShoppingCart, Scan, X, Loader2 } from 'lucide-react';
 import BarcodeScanner from './BarcodeScanner';
+import PipelinePagination from './PipelinePagination';
+import { formatOrderDate } from '../utils/formatOrderDate';
+
+const PAGE_SIZE = 50;
 
 export default function Procurement({ api }) {
     const [requests, setRequests] = useState([]);
@@ -9,29 +13,51 @@ export default function Procurement({ api }) {
     const [scanModal, setScanModal] = useState(null); // { request_id, order_id, brand, processor, ram, storage }
     const [receiveModal, setReceiveModal] = useState(null); // For receiving NEW item
     const [showCompleted, setShowCompleted] = useState(false);
+    const [page, setPage] = useState(1);
+    const [total, setTotal] = useState(0);
+    const [summary, setSummary] = useState({ new: 0, ordered: 0, total: 0 });
 
-    // Filter Stats
     const stats = {
-        new: requests.filter(r => r.status === 'New').length,
-        ordered: requests.filter(r => r.status === 'Ordered').length,
-        total: requests.length
+        new: summary.new,
+        ordered: summary.ordered,
+        total: summary.total
     };
 
     const loadRequests = React.useCallback(async () => {
         setLoading(true);
         try {
-            const { data } = await api.get(`/procurement?include_received=${showCompleted}`);
+            const offset = (page - 1) * PAGE_SIZE;
+            const { data } = await api.get(
+                `/procurement?include_received=${showCompleted}&limit=${PAGE_SIZE}&offset=${offset}`
+            );
             setRequests(data.requests || []);
+            setTotal(data.total ?? 0);
+            if (data.summary) {
+                setSummary({
+                    new: data.summary.new ?? 0,
+                    ordered: data.summary.ordered ?? 0,
+                    total: data.summary.total ?? data.total ?? 0
+                });
+            }
         } catch (e) {
             console.error(e);
         } finally {
             setLoading(false);
         }
-    }, [api, showCompleted]);
+    }, [api, showCompleted, page]);
 
     useEffect(() => {
         loadRequests();
     }, [loadRequests]);
+
+    useEffect(() => {
+        setPage(1);
+    }, [showCompleted]);
+
+    useEffect(() => {
+        const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        if (total > 0 && page > totalPages) setPage(totalPages);
+    }, [total, page]);
 
     const handleConfirmOrder = async (e) => {
         e.preventDefault();
@@ -69,92 +95,96 @@ export default function Procurement({ api }) {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-bold flex items-center gap-2">
-                        <Truck className="text-blue-600" />
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                        <Truck className="w-6 h-6 text-blue-600 shrink-0" />
                         Procurement
                     </h2>
-                    <p className="text-gray-600">Track and fulfill missing inventory requests. Scan laptops to assign to orders.</p>
+                    <p className="text-gray-600 text-sm">Track and fulfill missing inventory requests. Scan laptops to assign to orders.</p>
                 </div>
-                <label className="flex items-center gap-2 text-sm text-gray-600">
+                <label className="flex items-center gap-2 text-xs text-gray-600">
                     <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
                     Show completed
                 </label>
             </div>
 
             {/* Status Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex items-center gap-4">
-                    <div className="bg-white p-3 rounded-lg"><AlertCircle className="w-6 h-6 text-red-600" /></div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="bg-red-50 p-3 rounded-lg border border-red-100 flex items-center gap-3">
+                    <div className="bg-white p-2 rounded-lg"><AlertCircle className="w-5 h-5 text-red-600" /></div>
                     <div>
-                        <div className="text-2xl font-bold text-red-700">{stats.new}</div>
-                        <div className="text-sm text-red-600">New Requests</div>
+                        <div className="text-xl font-bold text-red-700">{stats.new}</div>
+                        <div className="text-xs text-red-600">New Requests</div>
                     </div>
                 </div>
-                <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 flex items-center gap-4">
-                    <div className="bg-white p-3 rounded-lg"><Clock className="w-6 h-6 text-amber-600" /></div>
+                <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 flex items-center gap-3">
+                    <div className="bg-white p-2 rounded-lg"><Clock className="w-5 h-5 text-amber-600" /></div>
                     <div>
-                        <div className="text-2xl font-bold text-amber-700">{stats.ordered}</div>
-                        <div className="text-sm text-amber-600">Awaiting Delivery</div>
+                        <div className="text-xl font-bold text-amber-700">{stats.ordered}</div>
+                        <div className="text-xs text-amber-600">Awaiting Delivery</div>
                     </div>
                 </div>
-                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center gap-4">
-                    <div className="bg-white p-3 rounded-lg"><ShoppingCart className="w-6 h-6 text-blue-600" /></div>
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex items-center gap-3">
+                    <div className="bg-white p-2 rounded-lg"><ShoppingCart className="w-5 h-5 text-blue-600" /></div>
                     <div>
-                        <div className="text-2xl font-bold text-blue-700">{stats.total}</div>
-                        <div className="text-sm text-blue-600">Total Active</div>
+                        <div className="text-xl font-bold text-blue-700">{stats.total}</div>
+                        <div className="text-xs text-blue-600">Total Active</div>
                     </div>
                 </div>
             </div>
 
             {/* Requests List */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full text-left">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <table className="w-full text-left text-xs">
                     <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-sm">Order ID</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-sm">Item Needed</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-sm">Company</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-sm">Status</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-sm">Vendor Info</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-sm">Actions</th>
+                            <th className="px-3 py-2 font-medium text-gray-500">Order ID</th>
+                            <th className="px-3 py-2 font-medium text-gray-500 whitespace-nowrap">Order Date</th>
+                            <th className="px-3 py-2 font-medium text-gray-500">Item Needed</th>
+                            <th className="px-3 py-2 font-medium text-gray-500">Company</th>
+                            <th className="px-3 py-2 font-medium text-gray-500">Status</th>
+                            <th className="px-3 py-2 font-medium text-gray-500">Vendor Info</th>
+                            <th className="px-3 py-2 font-medium text-gray-500">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {requests.map(req => (
                             <tr key={req.request_id} className="hover:bg-gray-50">
-                                <td className="px-6 py-4">
-                                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-bold">#{req.order_id}</span>
+                                <td className="px-3 py-2 align-middle">
+                                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[11px] font-bold">#{req.order_id}</span>
                                 </td>
-                                <td className="px-6 py-4">
-                                    <div className="font-bold text-gray-900">{req.brand} {req.preferred_model || 'Laptop'}</div>
-                                    <div className="text-sm text-gray-500">{req.processor}{req.generation ? ` / ${req.generation}` : ''} / {req.ram} / {req.storage}</div>
+                                <td className="px-3 py-2 align-middle text-gray-700 whitespace-nowrap tabular-nums">
+                                    {formatOrderDate(req.order_date)}
                                 </td>
-                                <td className="px-6 py-4">
-                                    <div className="text-sm font-medium">{req.company_name || req.customer_name || '-'}</div>
+                                <td className="px-3 py-2 align-middle">
+                                    <div className="font-semibold text-gray-900 text-[13px] leading-tight">{req.brand} {req.preferred_model || 'Laptop'}</div>
+                                    <div className="text-[11px] text-gray-500 leading-tight">{req.processor}{req.generation ? ` / ${req.generation}` : ''} / {req.ram} / {req.storage}</div>
                                 </td>
-                                <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${req.status === 'New' ? 'bg-red-100 text-red-600' :
+                                <td className="px-3 py-2 align-middle">
+                                    <div className="text-[12px] font-medium">{req.company_name || req.customer_name || '-'}</div>
+                                </td>
+                                <td className="px-3 py-2 align-middle">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${req.status === 'New' ? 'bg-red-100 text-red-600' :
                                         req.status === 'Ordered' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'
                                         }`}>
                                         {req.status}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 text-sm">
+                                <td className="px-3 py-2 align-middle text-[11px]">
                                     {req.vendor ? (
                                         <div>
                                             <div className="font-medium">{req.vendor}</div>
                                             <div className="text-gray-500">₹{req.estimated_cost}</div>
-                                            <div className="text-xs text-gray-400">ETA: {req.expected_date || '-'}</div>
+                                            <div className="text-[10px] text-gray-400">ETA: {req.expected_date || '-'}</div>
                                         </div>
                                     ) : (
                                         <span className="text-gray-400 italic">Not ordered</span>
                                     )}
                                 </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex gap-2 flex-wrap">
+                                <td className="px-3 py-2 align-middle">
+                                    <div className="flex gap-1.5 flex-wrap">
                                         {(req.status === 'New' || req.status === 'Ordered') && (
                                             <button
                                                 onClick={() => setScanModal({
@@ -165,9 +195,9 @@ export default function Procurement({ api }) {
                                                     ram: req.ram,
                                                     storage: req.storage
                                                 })}
-                                                className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-1"
+                                                className="bg-green-600 text-white px-2 py-1 rounded-md text-[11px] font-medium hover:bg-green-700 flex items-center gap-1"
                                             >
-                                                <Scan className="w-4 h-4" /> Scan & Assign
+                                                <Scan className="w-3.5 h-3.5" /> Scan & Assign
                                             </button>
                                         )}
                                     </div>
@@ -177,7 +207,16 @@ export default function Procurement({ api }) {
                     </tbody>
                 </table>
                 {requests.length === 0 && !loading && (
-                    <div className="p-8 text-center text-gray-500">No active procurement requests.</div>
+                    <div className="p-6 text-center text-gray-500 text-sm">No active procurement requests.</div>
+                )}
+                {total > 0 && (
+                    <PipelinePagination
+                        page={page}
+                        pageSize={PAGE_SIZE}
+                        total={total}
+                        disabled={loading}
+                        onPageChange={setPage}
+                    />
                 )}
             </div>
 

@@ -241,7 +241,7 @@ function Layout({ children }) {
 
   const menuItems = [
     { icon: BarChart3, label: 'Dashboard', path: '/dashboard', roles: ['team_member', 'team_lead', 'manager', 'admin', 'floor_manager', 'sales'] },
-    { icon: Archive, label: 'Inventory', path: '/inventory', roles: ['manager', 'admin', 'floor_manager'], permission: 'inventory_access' },
+    { icon: Archive, label: 'Inventory', path: '/inventory', roles: ['manager', 'admin', 'floor_manager'], permission: 'inventory_read', permissionAny: ['inventory_read', 'inventory_write', 'inventory_access'] },
     { icon: ClipboardList, label: 'Tickets', path: '/tickets', roles: ['team_member', 'team_lead', 'manager', 'admin', 'floor_manager'] },
     { icon: Briefcase, label: 'Leads', path: '/leads', roles: ['manager', 'admin', 'sales'], permission: 'sales_access' },
     { icon: Briefcase, label: 'Sales Orders', path: '/sales', roles: ['manager', 'admin', 'sales'], permission: 'sales_access' },
@@ -292,10 +292,13 @@ function Layout({ children }) {
               const hasTeamAccess = user && ['manager', 'admin'].includes(user.role);
               return hasTeamAccess;
             }
+            const permMatch = item.permissionAny
+              ? item.permissionAny.some(p => user.permissions?.includes(p))
+              : (item.permission && user.permissions?.includes(item.permission));
             return !item.roles ||
               (user && (
                 item.roles.includes(user.role) ||
-                (item.permission && user.permissions?.includes(item.permission))
+                permMatch
               ));
           }).map((item) => {
             if (item.type === 'section') {
@@ -1325,7 +1328,8 @@ function Teams() {
   const [teamsEditModal, setTeamsEditModal] = useState(null);
   const canManageUsers = user && ['admin', 'manager'].includes(user.role);
   const PERMISSIONS = [
-    { key: 'inventory_access', label: 'Inventory' },
+    { key: 'inventory_read', label: 'Inventory View (see & search)' },
+    { key: 'inventory_write', label: 'Inventory Edit (add, upload, CSV)' },
     { key: 'parts_access', label: 'Parts' },
     { key: 'reports_access', label: 'Reports' },
     { key: 'sales_access', label: 'Sales' },
@@ -2942,7 +2946,7 @@ function App() {
           <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin', 'manager', 'floor_manager']}><Layout><Reports api={api} /></Layout></ProtectedRoute>} />
           <Route path="/inventory" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['manager', 'admin', 'floor_manager']} allowedPermissions={['inventory_read', 'inventory_write', 'inventory_access']}>
               <Layout>
                 <div className="p-6">
                   <Inventory api={api} />

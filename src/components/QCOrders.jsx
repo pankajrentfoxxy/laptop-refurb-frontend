@@ -1,19 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { Eye, Loader2, MessageSquare, RefreshCw, X, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import PipelinePagination from './PipelinePagination';
+import { formatOrderDate } from '../utils/formatOrderDate';
+
+const QC_PIPELINE_STATUSES = 'Procurement Pending,Warehouse Pending,QC Pending';
+const PAGE_SIZE = 50;
 
 function LaptopDetailsCell({ items }) {
-    if (!items || items.length === 0) return <span className="text-gray-400">Loading...</span>;
+    if (!items || items.length === 0) return <span className="text-gray-400 text-[11px]">Loading...</span>;
     return (
-        <div className="space-y-1.5 max-w-md">
+        <div className="space-y-1 max-w-md">
             {items.map((item, idx) => (
-                <div key={idx} className="text-xs border-l-2 border-slate-200 pl-2 py-0.5">
+                <div key={idx} className="text-[11px] border-l-2 border-slate-200 pl-1.5 py-0.5">
                     <div className="font-medium text-slate-800">{item.brand} {item.preferred_model || ''}</div>
-                    <div className="text-gray-600">{item.processor}{item.generation ? ` | ${item.generation}` : ''} | {item.ram} | {item.storage}</div>
+                    <div className="text-gray-600 leading-tight">{item.processor}{item.generation ? ` | ${item.generation}` : ''} | {item.ram} | {item.storage}</div>
                     {item.machine_number ? (
-                        <div className="text-blue-600 font-mono mt-0.5">Machine: {item.machine_number}</div>
+                        <div className="text-blue-600 font-mono mt-0.5 text-[10px]">Machine: {item.machine_number}</div>
                     ) : (
-                        <div className="text-amber-600 mt-0.5">Pending assignment</div>
+                        <div className="text-amber-600 mt-0.5 text-[10px]">Pending assignment</div>
                     )}
                 </div>
             ))}
@@ -28,6 +33,9 @@ export default function QCOrders({ api }) {
     const [detailsModal, setDetailsModal] = useState(null);
     const [noteModal, setNoteModal] = useState(null);
     const [noteText, setNoteText] = useState('');
+    const [bitlockerModal, setBitlockerModal] = useState(null); // { orderId, itemId?, isPassAll, onSuccess? }
+    const [page, setPage] = useState(1);
+    const [total, setTotal] = useState(0);
 
     const isQC = user?.team_name?.includes('QC') ||
         user?.role === 'admin' ||
@@ -39,10 +47,18 @@ export default function QCOrders({ api }) {
     const loadOrders = React.useCallback(async () => {
         setLoading(true);
         try {
-            const { data } = await api.get('/sales/orders');
-            const qcOrders = (data.orders || []).filter(o => ['Procurement Pending', 'Warehouse Pending', 'QC Pending'].includes(o.status));
+            const offset = (page - 1) * PAGE_SIZE;
+            const { data } = await api.get('/sales/orders', {
+                params: {
+                    statuses: QC_PIPELINE_STATUSES,
+                    limit: PAGE_SIZE,
+                    offset
+                }
+            });
+            const ordersPage = data.orders || [];
+            setTotal(typeof data.total === 'number' ? data.total : ordersPage.length);
             const withItems = await Promise.all(
-                qcOrders.map(async (o) => {
+                ordersPage.map(async (o) => {
                     try {
                         const { data: detail } = await api.get(`/sales/orders/${o.order_id}`);
                         return { ...o, items: detail.items || [] };
@@ -57,34 +73,42 @@ export default function QCOrders({ api }) {
         } finally {
             setLoading(false);
         }
-    }, [api]);
+    }, [api, page]);
 
     useEffect(() => {
         if (isQC) loadOrders();
     }, [isQC, loadOrders]);
 
-    const handleQCPass = async (orderId) => {
-        if (!window.confirm('Mark all laptops in this order as QC Passed?')) return;
-        try {
-            await api.put(`/sales/orders/${orderId}/qc-pass`);
-            alert('All laptops marked QC Passed. Order visible in Dispatch.');
-            loadOrders();
-        } catch (e) {
-            alert('Failed: ' + (e.response?.data?.message || e.message));
-        }
+    useEffect(() => {
+        const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        if (total > 0 && page > totalPages) setPage(totalPages);
+    }, [total, page]);
+
+    const handleQCPassClick = (orderId, itemId = null, isPassAll = false, onSuccess = null) => {
+        setBitlockerModal({ orderId, itemId, isPassAll, onSuccess });
     };
 
-    const handleQCPassItem = async (orderId, itemId, onSuccess) => {
-        if (!window.confirm('Mark this laptop as QC Passed? It will appear in Dispatch.')) return;
+    const handleBitlockerDone = async () => {
+        if (!bitlockerModal) return;
+        const { orderId, itemId, isPassAll, onSuccess } = bitlockerModal;
+        setBitlockerModal(null);
         try {
-            await api.put(`/sales/orders/${orderId}/items/${itemId}/qc-pass`);
-            alert('Laptop marked QC Passed. Now visible in Dispatch.');
+            if (isPassAll) {
+                await api.put(`/sales/orders/${orderId}/qc-pass`);
+                alert('All laptops marked QC Passed. Order visible in Dispatch.');
+            } else {
+                await api.put(`/sales/orders/${orderId}/items/${itemId}/qc-pass`);
+                alert('Laptop marked QC Passed. Now visible in Dispatch.');
+            }
             loadOrders();
             onSuccess?.();
         } catch (e) {
             alert('Failed: ' + (e.response?.data?.message || e.message));
         }
     };
+
+    const handleQCPass = (orderId) => handleQCPassClick(orderId, null, true);
+    const handleQCPassItem = (orderId, itemId, onSuccess) => handleQCPassClick(orderId, itemId, false, onSuccess);
 
     const handleSaveNote = async () => {
         if (!noteModal) return;
@@ -97,6 +121,7 @@ export default function QCOrders({ api }) {
             alert('QC note added');
             setNoteModal(null);
             setNoteText('');
+            loadOrders();
         } catch (e) {
             alert('Failed: ' + (e.response?.data?.message || e.message));
         }
@@ -115,63 +140,71 @@ export default function QCOrders({ api }) {
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-bold">QC Orders</h2>
-                    <p className="text-gray-600">Review Procurement Pending and QC Pending orders</p>
+                    <h2 className="text-xl font-bold">QC Orders</h2>
+                    <p className="text-gray-600 text-sm">Review Procurement Pending, Warehouse Pending, and QC Pending orders</p>
                 </div>
-                <button onClick={loadOrders} className="px-4 py-2 bg-gray-100 rounded-lg flex items-center gap-2">
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+                <button
+                    type="button"
+                    onClick={loadOrders}
+                    className="px-3 py-1.5 text-xs font-medium bg-gray-100 rounded-md flex items-center gap-1.5 hover:bg-gray-200"
+                >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
                 </button>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full text-sm">
-                    <thead className="bg-gray-100">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <table className="w-full text-xs">
+                    <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                            <th className="text-left p-3">Order ID</th>
-                            <th className="text-left p-3">Laptop Details</th>
-                            <th className="text-left p-3">Status</th>
-                            <th className="text-center p-3">Items</th>
-                            <th className="p-3">Actions</th>
+                            <th className="text-left px-3 py-2 font-medium text-gray-500">Order ID</th>
+                            <th className="text-left px-3 py-2 font-medium text-gray-500 whitespace-nowrap">Order Date</th>
+                            <th className="text-left px-3 py-2 font-medium text-gray-500">Laptop Details</th>
+                            <th className="text-left px-3 py-2 font-medium text-gray-500">Status</th>
+                            <th className="text-center px-3 py-2 font-medium text-gray-500">Items</th>
+                            <th className="px-3 py-2 font-medium text-gray-500">Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-gray-100">
                         {orders.map(order => (
-                            <tr key={order.order_id} className="border-t hover:bg-gray-50">
-                                <td className="p-3 font-bold text-blue-600">#{order.order_id}</td>
-                                <td className="p-3">
+                            <tr key={order.order_id} className="hover:bg-gray-50">
+                                <td className="px-3 py-2 align-middle font-bold text-blue-600 text-[13px]">#{order.order_id}</td>
+                                <td className="px-3 py-2 align-middle text-gray-700 whitespace-nowrap tabular-nums">
+                                    {formatOrderDate(order.created_at)}
+                                </td>
+                                <td className="px-3 py-2 align-middle">
                                     <LaptopDetailsCell items={order.items || []} />
                                 </td>
-                                <td className="p-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                <td className="px-3 py-2 align-middle">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                                         order.status === 'QC Pending' ? 'bg-purple-100 text-purple-700' :
                                         order.status === 'Warehouse Pending' ? 'bg-teal-100 text-teal-700' : 'bg-amber-100 text-amber-700'
                                     }`}>
                                         {order.status}
                                     </span>
                                 </td>
-                                <td className="p-3 text-center font-semibold">{order.items_count}</td>
-                                <td className="p-3">
-                                    <div className="flex gap-2 justify-center">
-                                        <button onClick={() => setDetailsModal(order)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
-                                            <Eye className="w-4 h-4" />
+                                <td className="px-3 py-2 align-middle text-center font-semibold tabular-nums">{order.items_count}</td>
+                                <td className="px-3 py-2 align-middle">
+                                    <div className="flex gap-1.5 justify-center flex-wrap">
+                                        <button type="button" onClick={() => setDetailsModal(order)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md">
+                                            <Eye className="w-3.5 h-3.5" />
                                         </button>
                                         {((order.status === 'QC Pending') || (order.status === 'Warehouse Pending' && (order.items || []).some(i => i.status === 'Assigned'))) && (
                                             <>
-                                                <button onClick={() => setDetailsModal(order)} className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
+                                                <button type="button" onClick={() => setDetailsModal(order)} className="px-2 py-1 bg-indigo-600 text-white rounded-md text-[10px] font-bold hover:bg-indigo-700">
                                                     QC Pass
                                                 </button>
                                                 {(order.items || []).filter(i => i.status === 'Assigned').length > 1 && (
-                                                    <button onClick={() => handleQCPass(order.order_id)} className="px-3 py-1 bg-indigo-500 text-white rounded-lg text-xs font-bold hover:bg-indigo-600">
+                                                    <button type="button" onClick={() => handleQCPass(order.order_id)} className="px-2 py-1 bg-indigo-500 text-white rounded-md text-[10px] font-bold hover:bg-indigo-600">
                                                         Pass All
                                                     </button>
                                                 )}
                                             </>
                                         )}
                                         {order.status === 'Procurement Pending' && (
-                                            <button onClick={() => setNoteModal(order)} className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 flex items-center gap-1">
+                                            <button type="button" onClick={() => setNoteModal(order)} className="px-2 py-1 bg-amber-600 text-white rounded-md text-[10px] font-bold hover:bg-amber-700 flex items-center gap-0.5">
                                                 <MessageSquare className="w-3 h-3" /> Add Note
                                             </button>
                                         )}
@@ -180,14 +213,53 @@ export default function QCOrders({ api }) {
                             </tr>
                         ))}
                         {orders.length === 0 && !loading && (
-                            <tr><td colSpan={5} className="p-8 text-center text-gray-500">No QC orders found</td></tr>
+                            <tr><td colSpan={6} className="p-6 text-center text-gray-500 text-sm">No QC orders found</td></tr>
                         )}
                         {loading && (
-                            <tr><td colSpan={5} className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600" /></td></tr>
+                            <tr><td colSpan={6} className="p-6 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600" /></td></tr>
                         )}
                     </tbody>
                 </table>
+                {total > 0 && (
+                    <PipelinePagination
+                        page={page}
+                        pageSize={PAGE_SIZE}
+                        total={total}
+                        disabled={loading}
+                        onPageChange={setPage}
+                    />
+                )}
             </div>
+
+            {bitlockerModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                        <div className="text-center mb-6">
+                            <div className="mx-auto w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mb-4">
+                                <span className="text-2xl">🔒</span>
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">Please remove Bitlocker</h3>
+                            <p className="text-gray-600 text-sm">
+                                Ensure Bitlocker has been removed from the laptop before marking QC Pass. The order will move to Dispatch after you confirm.
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setBitlockerModal(null)}
+                                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleBitlockerDone}
+                                className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700"
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {noteModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">

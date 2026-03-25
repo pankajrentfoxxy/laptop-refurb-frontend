@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Search, Plus, Archive,
-    Filter, RefreshCw, X, Upload, Download
+    Filter, RefreshCw, X, Upload, Download, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import Barcode from 'react-barcode';
 
 import { useAuth } from '../context/AuthContext';
+
+const PAGE_SIZE = 50;
 
 export default function Inventory({ api }) {
     const { user } = useAuth();
@@ -13,6 +15,8 @@ export default function Inventory({ api }) {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [inventoryType, setInventoryType] = useState('all'); // 'all', 'Cooling Period', 'Ready'
+    const [page, setPage] = useState(1);
+    const [total, setTotal] = useState(0);
     const [showAddModal, setShowAddModal] = useState(false);
     const [newItem, setNewItem] = useState({
         stock_type: 'Cooling Period',
@@ -31,71 +35,51 @@ export default function Inventory({ api }) {
     });
 
     const isWarehouse = user?.team_name?.includes('Warehouse') || user?.role === 'admin' || user?.role === 'manager';
-    const canRead = isWarehouse || user?.permissions?.includes('inventory_read') || user?.role === 'floor_manager';
-    const canWrite = isWarehouse || user?.permissions?.includes('inventory_write');
+    const perms = user?.permissions || [];
+    const canRead = isWarehouse || user?.role === 'floor_manager' || perms.includes('inventory_read') || perms.includes('inventory_write') || perms.includes('inventory_access');
+    const canWrite = isWarehouse || perms.includes('inventory_write') || perms.includes('inventory_access');
 
-    const loadInventory = useCallback(async () => {
+    const loadInventory = useCallback(async (pageNum = 1) => {
         if (!canRead) return;
         setLoading(true);
+        const offset = (pageNum - 1) * PAGE_SIZE;
         try {
-            let url = '/inventory';
+            let url = `/inventory?limit=${PAGE_SIZE}&offset=${offset}`;
             if (inventoryType !== 'all') {
-                url += `?stock_type=${inventoryType}`;
+                url += `&stock_type=${encodeURIComponent(inventoryType)}`;
+            }
+            if (searchTerm.trim()) {
+                url += `&search=${encodeURIComponent(searchTerm.trim())}`;
             }
             const { data } = await api.get(url);
             setItems(data.items || []);
+            setTotal(data.total ?? (data.items?.length ?? 0));
         } catch (error) {
             console.error('Load inventory error:', error);
-            // alert('Failed to load inventory');
         } finally {
             setLoading(false);
         }
-    }, [api, inventoryType, canRead]);
+    }, [api, inventoryType, searchTerm, canRead]);
 
-    const handleSearch = async (e) => {
-        e.preventDefault();
-        if (!searchTerm.trim()) {
-            loadInventory();
-            return;
-        }
-        setLoading(true);
-        try {
-            const { data } = await api.get(`/inventory/search?term=${searchTerm}`);
-            const results = data.items || (data.item ? [data.item] : []);
-            setItems(results);
-        } catch (error) {
-            console.error('Search error:', error);
-        } finally {
-            setLoading(false);
-        }
+    const handleSearch = (e) => {
+        e?.preventDefault();
+        setPage(1);
     };
 
     useEffect(() => {
-        if (!canRead) return;
-        const term = searchTerm.trim();
-        if (!term) {
-            loadInventory();
+        if (!canRead) {
+            setLoading(false);
             return;
         }
-        const timer = setTimeout(() => {
-            api.get(`/inventory/search?term=${term}`)
-                .then(({ data }) => {
-                    const results = data.items || (data.item ? [data.item] : []);
-                    setItems(results);
-                })
-                .catch((error) => {
-                    console.error('Search error:', error);
-                    setItems([]);
-                });
-        }, 400);
-
+        const timer = setTimeout(() => loadInventory(page), searchTerm.trim() ? 400 : 0);
         return () => clearTimeout(timer);
-    }, [searchTerm, canRead, loadInventory, api]);
+    }, [page, inventoryType, searchTerm, canRead]);
 
     useEffect(() => {
-        if (canRead) loadInventory();
-        else setLoading(false);
-    }, [loadInventory, canRead]);
+        if (canRead) setPage(1);
+    }, [inventoryType, searchTerm]);
+
+    const totalPages = Math.ceil(total / PAGE_SIZE);
 
     // Access Denied UI
     if (!user) return null;
@@ -130,7 +114,8 @@ export default function Inventory({ api }) {
                 screen_size: '',
                 status: 'In Stock'
             });
-            loadInventory();
+            setPage(1);
+            loadInventory(1);
         } catch (error) {
             console.error('Add item error:', error);
             alert(error.response?.data?.message || 'Failed to add item');
@@ -152,7 +137,8 @@ export default function Inventory({ api }) {
                 console.table(data.errors);
                 alert('check console for errors');
             }
-            loadInventory();
+            setPage(1);
+            loadInventory(1);
         } catch (error) {
             console.error('Upload error:', error);
             alert('Failed to upload file');
@@ -255,7 +241,7 @@ export default function Inventory({ api }) {
                     </select>
                 </div>
                 <button
-                    onClick={loadInventory}
+                    onClick={() => loadInventory(page)}
                     className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
                     title="Refresh"
                 >
@@ -342,6 +328,34 @@ export default function Inventory({ api }) {
                     </table>
                 </div>
             </div>
+
+            {/* Pagination */}
+            {total > PAGE_SIZE && (
+                <div className="flex items-center justify-between bg-white px-4 py-2 rounded-lg border border-slate-200">
+                    <span className="text-sm text-slate-600">
+                        Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+                    </span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page <= 1}
+                            className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <span className="px-3 py-2 text-sm font-medium text-slate-700">
+                            Page {page} of {totalPages || 1}
+                        </span>
+                        <button
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page >= totalPages}
+                            className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Add Item Modal */}
             {showAddModal && (
